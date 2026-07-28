@@ -30,6 +30,7 @@ build/
 .next/
 coverage/
 *.local
+*.tsbuildinfo
 
 # ---------- Power Platform ----------
 *.msapp.unpacked/

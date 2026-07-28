@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/auth.ts","./src/main.tsx","./src/signalr.ts","./src/types.ts","./src/vite-env.d.ts","./src/components/exceptiondetail.tsx","./src/components/exceptiongrid.tsx","./src/components/filters.tsx"],"version":"5.9.3"}
