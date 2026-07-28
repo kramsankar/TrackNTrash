@@ -1,5 +1,5 @@
 using TrackNTrash.Tracking.Api;
-using TrackNTrash.Tracking.Api.Infrastructure;
+using TrackNTrash.Tracking.Infrastructure;
 using TrackNTrash.Tracking.Core;
 using TrackNTrash.Tracking.Core.Notifications;
 using TrackNTrash.Tracking.Core.Rules;

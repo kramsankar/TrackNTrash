@@ -2,7 +2,7 @@ using Microsoft.Data.SqlClient;
 using TrackNTrash.Tracking.Core;
 using TrackNTrash.Tracking.Core.Stores;
 
-namespace TrackNTrash.Tracking.Api.Infrastructure;
+namespace TrackNTrash.Tracking.Infrastructure;
 
 /// <summary>
 /// SQL-backed append-only event store against the Module 1 schema (ops.ScanEvent).

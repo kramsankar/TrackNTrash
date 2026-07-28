@@ -3,7 +3,7 @@ using Azure.Messaging.ServiceBus;
 using TrackNTrash.Tracking.Core;
 using TrackNTrash.Tracking.Core.Notifications;
 
-namespace TrackNTrash.Tracking.Api.Infrastructure;
+namespace TrackNTrash.Tracking.Infrastructure;
 
 /// <summary>
 /// Publishes exceptions to an Azure Service Bus topic. Subscribers (Teams webhook, email,

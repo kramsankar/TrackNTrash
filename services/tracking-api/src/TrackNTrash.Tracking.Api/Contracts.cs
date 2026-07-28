@@ -1,4 +1,5 @@
 using TrackNTrash.Tracking.Core;
+using TrackNTrash.Tracking.Infrastructure;
 
 namespace TrackNTrash.Tracking.Api;
 
@@ -51,9 +52,9 @@ public sealed record OrderDto
     public string? ErpReference { get; init; }
     public List<OrderLineDto> Lines { get; init; } = new();
 
-    public Infrastructure.SqlOrderStore.OrderInput ToInput() => new(
+    public SqlOrderStore.OrderInput ToInput() => new(
         OrderNumber, StoreCode, ErpReference,
-        Lines.Select(l => new Infrastructure.SqlOrderStore.OrderLineInput(
+        Lines.Select(l => new SqlOrderStore.OrderLineInput(
             l.LineNumber, l.Gtin, l.OrderedQty, l.Uom, l.ExpectedCartonCount, l.ErpLineReference)).ToList());
 }
 

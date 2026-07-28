@@ -1,68 +1,59 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "./api";
-import { connectExceptionsHub } from "./signalr";
-import type { ConsoleException, Filters } from "./types";
-import { FiltersBar } from "./components/Filters";
-import { ExceptionGrid } from "./components/ExceptionGrid";
-import { ExceptionDetailPane } from "./components/ExceptionDetail";
+import { useState } from "react";
 import { useDevUser } from "./auth";
+import { Dashboard } from "./views/Dashboard";
+import { Orders } from "./views/Orders";
+import { Trips } from "./views/Trips";
+import { Manifests } from "./views/Manifests";
+import { LineLookup } from "./views/LineLookup";
+import { ExceptionsView } from "./views/ExceptionsView";
+
+type View = "dashboard" | "orders" | "trips" | "manifests" | "lookup" | "exceptions";
+
+const MENU: { id: View; label: string; icon: string; group: string }[] = [
+  { id: "dashboard", label: "Dashboard", icon: "▦", group: "Overview" },
+  { id: "orders", label: "Orders", icon: "🧾", group: "Operations" },
+  { id: "trips", label: "Trips & Loading", icon: "🚚", group: "Operations" },
+  { id: "manifests", label: "Manifests (ASN)", icon: "📦", group: "Operations" },
+  { id: "lookup", label: "Line Lookup", icon: "🔎", group: "Operations" },
+  { id: "exceptions", label: "Exceptions", icon: "⚠️", group: "Monitoring" },
+];
 
 export default function App() {
   const user = useDevUser();
-  const [filters, setFilters] = useState<Filters>({});
-  const [items, setItems] = useState<ConsoleException[]>([]);
-  const [selected, setSelected] = useState<number | undefined>();
+  const [view, setView] = useState<View>("dashboard");
   const [live, setLive] = useState(false);
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
 
-  const refresh = useCallback(() => {
-    api.list(filtersRef.current, user.getToken()).then(setItems).catch(console.error);
-  }, [user]);
-
-  useEffect(() => { refresh(); }, [filters, refresh]);
-
-  useEffect(() => {
-    const conn = connectExceptionsHub(
-      (e) => { // raised
-        setItems((prev) => matches(e, filtersRef.current) ? [e, ...prev.filter((x) => x.id !== e.id)] : prev);
-      },
-      (e) => { // updated
-        setItems((prev) => prev.map((x) => (x.id === e.id ? e : x)));
-      },
-      (connected) => setLive(connected)   // live indicator tracks the real connection state
-    );
-    return () => { conn.stop(); };
-  }, []);
+  const groups = [...new Set(MENU.map((m) => m.group))];
 
   return (
-    <div className="app">
-      <header>
-        <h1>TrackNTrash · Exception Console</h1>
-        <span className={`live ${live ? "on" : "off"}`}>{live ? "● live" : "○ offline"}</span>
-        <span className="user">{user.name} ({user.roles.join(", ")})</span>
-      </header>
-      <FiltersBar value={filters} onChange={setFilters} />
-      <div className="body">
-        <div className="left">
-          <ExceptionGrid items={items} selectedId={selected} onSelect={setSelected} />
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">TrackNTrash</div>
+        <div className="brand-sub">Dispatch Track &amp; Trace</div>
+        {groups.map((g) => (
+          <div key={g} className="nav-group">
+            <div className="nav-group-title">{g}</div>
+            {MENU.filter((m) => m.group === g).map((m) => (
+              <button key={m.id} className={`nav-item ${view === m.id ? "active" : ""}`} onClick={() => setView(m.id)}>
+                <span className="nav-icon">{m.icon}</span>{m.label}
+              </button>
+            ))}
+          </div>
+        ))}
+        <div className="sidebar-foot">
+          <span className={`live ${live ? "on" : "off"}`}>{live ? "● live" : "○ offline"}</span>
+          <span className="user">{user.name}<br /><small>{user.roles.join(", ")}</small></span>
         </div>
-        <div className="right">
-          {selected ? (
-            <ExceptionDetailPane id={selected} user={user} onChanged={refresh} />
-          ) : (
-            <div className="detail-pane muted">Select an exception to see detail, evidence and the event timeline.</div>
-          )}
-        </div>
-      </div>
+      </aside>
+
+      <main className="content">
+        {view === "dashboard" && <Dashboard user={user} onNavigate={(v) => setView(v as View)} />}
+        {view === "orders" && <Orders user={user} />}
+        {view === "trips" && <Trips user={user} />}
+        {view === "manifests" && <Manifests user={user} />}
+        {view === "lookup" && <LineLookup user={user} />}
+        {view === "exceptions" && <ExceptionsView user={user} onLive={setLive} />}
+      </main>
     </div>
   );
-}
-
-function matches(e: ConsoleException, f: Filters): boolean {
-  if (f.checkpoint && e.checkpoint !== f.checkpoint) return false;
-  if (f.severity && e.severity !== f.severity) return false;
-  if (f.status && e.status !== f.status) return false;
-  if (f.route && e.route !== f.route) return false;
-  return true;
 }

@@ -1,6 +1,21 @@
-# Exception Console — Module 12
+# Admin & Exception Console — Module 12
 
-Lightweight **React (Vite + TypeScript)** ops console over the Module 6 tracking API, with **live SignalR updates**, evidence view, event timeline, one-click actions, audit, and Entra ID auth.
+**React (Vite + TypeScript)** operations console over the tracking API. A sidebar-menu app with
+setup/operations screens plus the live exception monitor.
+
+## Screens (sidebar menu)
+
+| Group | Screen | What it does |
+|-------|--------|--------------|
+| Overview | **Dashboard** | KPI cards (API health, open/critical/high), severity bars, recent exceptions |
+| Operations | **Orders** | Create an order (master data → Azure SQL), then walk its line through the 5 checkpoints; force exceptions |
+| Operations | **Trips & Loading** | Create a trip with planned trays, scan-to-load (wrong-trip rejection), depart |
+| Operations | **Manifests (ASN)** | Upsert tray manifests + list them (delta sync source for the dock) |
+| Operations | **Line Lookup** | Look up a shipment line's state with a checkpoint stepper |
+| Monitoring | **Exceptions** | Live grid + detail (evidence, timeline, acknowledge/resolve/escalate, audit) |
+
+The exception monitor keeps the original **live SignalR** feed, evidence view, event timeline,
+one-click actions, audit, and Entra ID auth described below.
 
 ## Features
 

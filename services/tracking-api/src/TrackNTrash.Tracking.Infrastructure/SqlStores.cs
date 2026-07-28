@@ -3,7 +3,7 @@ using Microsoft.Data.SqlClient;
 using TrackNTrash.Tracking.Core;
 using TrackNTrash.Tracking.Core.Stores;
 
-namespace TrackNTrash.Tracking.Api.Infrastructure;
+namespace TrackNTrash.Tracking.Infrastructure;
 
 /// <summary>SQL-backed shipment-line state projection over ops.ShipmentLineState + history.</summary>
 public sealed class SqlShipmentStateStore : IShipmentStateStore

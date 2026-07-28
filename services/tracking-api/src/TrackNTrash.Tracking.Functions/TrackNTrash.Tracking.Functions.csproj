@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TrackNTrash.Tracking.Core\TrackNTrash.Tracking.Core.csproj" />
+    <ProjectReference Include="..\TrackNTrash.Tracking.Infrastructure\TrackNTrash.Tracking.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
