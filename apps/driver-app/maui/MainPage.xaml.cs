@@ -38,6 +38,15 @@ public partial class MainPage : ContentPage
         finally { btnCreate.IsEnabled = true; }
     }
 
+    // Camera scan (phone targets): scan a tray QR and load it.
+    private async void OnScanCamera(object? sender, EventArgs e)
+    {
+        var page = new ScanPage();
+        await Navigation.PushModalAsync(page);
+        var code = await page.Result;
+        if (!string.IsNullOrWhiteSpace(code)) { txtScan.Text = code.Trim(); OnLoadScan(this, EventArgs.Empty); }
+    }
+
     private async void OnLoadScan(object? sender, EventArgs e)
     {
         var trayQr = txtScan.Text?.Trim() ?? "";

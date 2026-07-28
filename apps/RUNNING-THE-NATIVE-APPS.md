@@ -41,17 +41,31 @@ Each app shows **● Connected** at the top when it reaches the live API.
 
 Watch it all land in the **Admin Console** (Exceptions / Line Lookup) and in **Azure SQL** — same events, same database.
 
-## Target a phone instead of the desktop
+## Phone targets — camera QR scanning
 
-These are built Windows-only for quick running. To target real handhelds, add the mobile TFMs back to the app's `.csproj` and install the full workload:
+Each app already targets **Android** (and iOS, on a Mac) and includes **camera QR scanning** via `ZXing.Net.MAUI`. Every screen has a **📷 Scan with camera** button that opens a live camera scanner; the decoded QR feeds the exact same logic as the keyboard field, so desktop and phone share one code path. Camera permissions are declared (Android `CAMERA`, iOS `NSCameraUsageDescription`).
 
+The app `.csproj` targets:
 ```xml
-<TargetFrameworks>net9.0-windows10.0.19041.0;net9.0-android;net9.0-ios</TargetFrameworks>
+<TargetFrameworks>net9.0-android;net9.0-windows10.0.19041.0</TargetFrameworks>
+<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net9.0-ios</TargetFrameworks>
 ```
+
+### Build for Android (produces an APK)
+
+One-time setup — the `maui-android` workload plus the Android SDK:
 ```bash
-dotnet workload install maui
+dotnet workload install maui-android
+# acquire the Android SDK + accept licenses (needed once):
+dotnet build apps/pick-app/maui -t:InstallAndroidDependencies -f net9.0-android \
+  -p:AndroidSdkDirectory="C:/Android/sdk" -p:AcceptAndroidSdkLicenses=True
 ```
-On phones you'd also wire camera scanning (e.g. `ZXing.Net.MAUI`) in place of the keyboard entry field.
+Then build / deploy:
+```bash
+dotnet build apps/pick-app/maui -f net9.0-android -c Release      # → .apk under bin/…/net9.0-android/
+dotnet build apps/pick-app/maui -t:Run -f net9.0-android          # deploy to a connected device/emulator
+```
+On a phone the **📷 Scan** button uses the real camera. iOS builds require a Mac + `dotnet workload install maui-ios`.
 
 ## Point at a different API
 

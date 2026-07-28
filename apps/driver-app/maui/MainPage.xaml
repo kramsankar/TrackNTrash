@@ -39,6 +39,7 @@
                            FontSize="12" TextColor="#9aa6ba" />
                     <Entry x:Name="txtScan" Placeholder="Scan tray QR then Enter…" Text="TRAY-LDN1-000001" Completed="OnLoadScan" TextColor="#e7ecf6" />
                     <Button Text="Load tray" Clicked="OnLoadScan" BackgroundColor="#2b3a5c" TextColor="White" />
+                    <Button Text="📷 Scan tray with camera" Clicked="OnScanCamera" BackgroundColor="#2b3a5c" TextColor="White" />
                 </VerticalStackLayout>
             </Border>
 

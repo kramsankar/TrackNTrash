@@ -42,6 +42,15 @@ public partial class MainPage : ContentPage
         finally { btnStart.IsEnabled = true; }
     }
 
+    // Camera scan (phone targets): scan a carton QR and receive it.
+    private async void OnScanCamera(object? sender, EventArgs e)
+    {
+        var page = new ScanPage();
+        await Navigation.PushModalAsync(page);
+        var code = await page.Result;
+        if (!string.IsNullOrWhiteSpace(code)) { txtScan.Text = code.Trim(); OnScan(this, EventArgs.Empty); }
+    }
+
     private async void OnScan(object? sender, EventArgs e)
     {
         var payload = txtScan.Text?.Trim() ?? "";

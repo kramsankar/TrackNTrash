@@ -49,6 +49,20 @@ public partial class MainPage : ContentPage
         var code = txtCarton.Text?.Trim() ?? "";
         txtCarton.Text = "";
         txtCarton.Focus();
+        ProcessCarton(code);
+    }
+
+    // Camera scan (phone targets): open the ZXing scanner and feed the result to the same logic.
+    private async void OnScanCamera(object? sender, EventArgs e)
+    {
+        var page = new ScanPage();
+        await Navigation.PushModalAsync(page);
+        var code = await page.Result;
+        if (!string.IsNullOrWhiteSpace(code)) ProcessCarton(code.Trim());
+    }
+
+    private void ProcessCarton(string code)
+    {
         if (code.Length == 0) return;
         if (_orderLineId is null) { Banner("Start an order first", true); return; }
         if (!_seen.Add(code)) { Banner($"Already scanned: {code}", true); return; }

@@ -36,6 +36,7 @@
                     <Label Text="Scan a carton then Enter. Not on the list → OVER (shows the correct store)."
                            FontSize="12" TextColor="#9aa6ba" />
                     <Entry x:Name="txtScan" Placeholder="Scan carton payload then Enter…" Completed="OnScan" TextColor="#e7ecf6" />
+                    <Button Text="📷 Scan carton with camera" Clicked="OnScanCamera" BackgroundColor="#2b3a5c" TextColor="White" />
                     <Label x:Name="lblTally" Text="0 / 0 received" FontSize="16" FontAttributes="Bold" TextColor="#43b477" />
                 </VerticalStackLayout>
             </Border>

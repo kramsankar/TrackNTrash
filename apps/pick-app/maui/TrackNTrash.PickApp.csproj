@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<!-- Windows-only so it builds and runs as a desktop app on this machine.
-		     Add back net9.0-android;net9.0-ios to target phones (camera scanning). -->
-		<TargetFrameworks>net9.0-windows10.0.19041.0</TargetFrameworks>
+		<!-- Desktop (keyboard/USB-scanner entry) + phones (camera QR scanning via ZXing).
+		     iOS builds require a Mac + the maui-ios workload; Android needs maui-android. -->
+		<TargetFrameworks>net9.0-android;net9.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">$(TargetFrameworks);net9.0-ios</TargetFrameworks>
 		<!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
 		<!-- <TargetFrameworks>$(TargetFrameworks);net9.0-tizen</TargetFrameworks> -->
 
@@ -63,6 +64,9 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.9" />
+		<!-- Camera-based QR scanning on phone targets -->
+		<PackageReference Include="ZXing.Net.MAUI" Version="0.4.0" />
+		<PackageReference Include="ZXing.Net.MAUI.Controls" Version="0.4.0" />
 	</ItemGroup>
 
 </Project>
