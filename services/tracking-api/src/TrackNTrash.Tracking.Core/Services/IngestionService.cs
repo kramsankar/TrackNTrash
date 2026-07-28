@@ -1,0 +1,135 @@
+using Microsoft.Extensions.Logging;
+using TrackNTrash.Tracking.Core.Notifications;
+using TrackNTrash.Tracking.Core.Rules;
+using TrackNTrash.Tracking.Core.Stores;
+
+namespace TrackNTrash.Tracking.Core.Services;
+
+/// <summary>
+/// Core ingestion pipeline. For each event:
+///   1. Append append-only (idempotent on device+clientEventId).
+///   2. Resolve the affected order line and map the event to a trigger.
+///   3. Evaluate the state machine — legal edges advance the projection; illegal edges are
+///      still recorded (event written) and raise an IllegalTransition exception. The event
+///      write is NEVER blocked by a bad transition.
+///   4. Run ingest-time exception rules.
+///   5. Publish every raised exception to the notifier.
+/// </summary>
+public sealed class IngestionService
+{
+    private readonly IEventStore _events;
+    private readonly IShipmentStateStore _states;
+    private readonly IExceptionStore _exceptions;
+    private readonly IManifestStore _manifests;
+    private readonly INotificationPublisher _notifier;
+    private readonly ShipmentStateMachine _machine;
+    private readonly ExceptionSeverityMatrix _severity;
+    private readonly IReadOnlyList<IIngestExceptionRule> _rules;
+    private readonly ILogger<IngestionService> _log;
+
+    public IngestionService(
+        IEventStore events,
+        IShipmentStateStore states,
+        IExceptionStore exceptions,
+        IManifestStore manifests,
+        INotificationPublisher notifier,
+        ShipmentStateMachine machine,
+        ExceptionSeverityMatrix severity,
+        IEnumerable<IIngestExceptionRule> rules,
+        ILogger<IngestionService> log)
+    {
+        _events = events;
+        _states = states;
+        _exceptions = exceptions;
+        _manifests = manifests;
+        _notifier = notifier;
+        _machine = machine;
+        _severity = severity;
+        _rules = rules.ToList();
+        _log = log;
+    }
+
+    public async Task<IngestResult> IngestAsync(ScanEventInput input, CancellationToken ct = default)
+    {
+        // 1. Append (idempotent).
+        var (stored, duplicate) = await _events.AppendOrGetAsync(input, ct);
+        if (duplicate)
+        {
+            _log.LogInformation("Duplicate event ignored: device={Device} clientEventId={Cid}",
+                input.DeviceId, input.ClientEventId);
+            return new IngestResult { Accepted = true, Duplicate = true, ScanEventId = stored.ScanEventId };
+        }
+
+        var raised = new List<TrackException>();
+        ShipmentState? newState = null;
+        bool transitionLegal = true;
+        long? orderLineId = input.OrderLineId;
+
+        // 2/3. State machine (only when the event maps to a trigger and targets a line).
+        var trigger = EventTriggerMap.Resolve(input);
+        ShipmentState? stateBefore = null;
+
+        if (trigger is not null && orderLineId is not null)
+        {
+            var rec = await _states.GetOrCreateAsync(orderLineId.Value, ct);
+            stateBefore = rec.CurrentState;
+
+            var result = _machine.Evaluate(rec.CurrentState, trigger.Value);
+            transitionLegal = result.IsLegal;
+
+            await _states.ApplyTransitionAsync(orderLineId.Value, result, stored.ScanEventId, result.IsLegal, ct);
+
+            if (result.IsLegal)
+            {
+                newState = result.ToState;
+            }
+            else
+            {
+                var ex = new TrackException
+                {
+                    Type = ExceptionType.IllegalTransition,
+                    Severity = _severity.For(ExceptionType.IllegalTransition),
+                    Checkpoint = input.Checkpoint,
+                    OrderLineId = orderLineId,
+                    TripId = input.TripId,
+                    TrayId = input.TrayId,
+                    TriggeringEventId = stored.ScanEventId,
+                    Detail = $"Illegal transition: {result.FromState} --{result.Trigger}--> (expected {result.ToState}); " +
+                             "event recorded, state unchanged."
+                };
+                raised.Add(ex);
+            }
+        }
+
+        // 4. Ingest-time rules.
+        var ruleCtx = new IngestRuleContext(stored, orderLineId, stateBefore, _severity, _manifests);
+        foreach (var rule in _rules)
+        {
+            try
+            {
+                raised.AddRange(await rule.EvaluateAsync(ruleCtx, ct));
+            }
+            catch (Exception rex)
+            {
+                _log.LogError(rex, "Ingest rule {Rule} failed", rule.Name);
+            }
+        }
+
+        // 5. Persist + publish exceptions.
+        foreach (var ex in raised)
+        {
+            await _exceptions.AddAsync(ex, ct);
+            await _notifier.PublishAsync(ex, ct);
+        }
+
+        return new IngestResult
+        {
+            Accepted = true,
+            Duplicate = false,
+            ScanEventId = stored.ScanEventId,
+            NewState = newState,
+            TransitionLegal = transitionLegal,
+            Exceptions = raised
+        };
+    }
+}

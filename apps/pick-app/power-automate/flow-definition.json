@@ -1,0 +1,115 @@
+{
+  "$comment": "Importable skeleton for the TrayBuildComplete cloud flow. Replace connection references and environment variables before import via a Power Platform solution or 'pac solution'.",
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "$connections": { "defaultValue": {}, "type": "Object" },
+      "$authentication": { "defaultValue": {}, "type": "SecureObject" }
+    },
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "PowerApp",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "deviceId": { "type": "string", "title": "deviceId" },
+              "userId": { "type": "string", "title": "userId" },
+              "orderNumber": { "type": "string", "title": "orderNumber" },
+              "trayQr": { "type": "string", "title": "trayQr" },
+              "eventsJson": { "type": "string", "title": "eventsJson" }
+            },
+            "required": ["deviceId", "userId", "orderNumber", "trayQr", "eventsJson"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Parse_events": {
+        "type": "ParseJson",
+        "inputs": {
+          "content": "@triggerBody()?['eventsJson']",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "clientEventId": { "type": "string" },
+                "eventType": { "type": "string" },
+                "orderLine": { "type": "string" },
+                "orderNumber": { "type": "string" },
+                "trayQr": { "type": "string" },
+                "scannedQr": { "type": "string" },
+                "cartons": { "type": "string" },
+                "deviceId": { "type": "string" },
+                "userId": { "type": "string" },
+                "eventUtc": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "Project_to_contract": {
+        "type": "Select",
+        "runAfter": { "Parse_events": ["Succeeded"] },
+        "inputs": {
+          "from": "@body('Parse_events')",
+          "select": {
+            "clientEventId": "@item()?['clientEventId']",
+            "eventType": "@item()?['eventType']",
+            "checkpoint": "PickTrayBuild",
+            "deviceId": "@triggerBody()?['deviceId']",
+            "userId": "@triggerBody()?['userId']",
+            "scannedQr": "@item()?['scannedQr']",
+            "orderNumber": "@triggerBody()?['orderNumber']",
+            "orderLineRef": "@item()?['orderLine']",
+            "trayQr": "@triggerBody()?['trayQr']",
+            "eventUtc": "@item()?['eventUtc']",
+            "meta": "@item()?['cartons']"
+          }
+        }
+      },
+      "Post_to_function": {
+        "type": "Http",
+        "runAfter": { "Project_to_contract": ["Succeeded"] },
+        "inputs": {
+          "method": "POST",
+          "uri": "@{parameters('tnt_FunctionBaseUrl')}/api/events/scan/batch",
+          "headers": {
+            "Content-Type": "application/json",
+            "x-functions-key": "@parameters('tnt_FunctionKey')"
+          },
+          "body": "@body('Project_to_contract')"
+        },
+        "retryPolicy": { "type": "exponential", "count": 4, "interval": "PT5S" }
+      },
+      "Respond_ok": {
+        "type": "Response",
+        "runAfter": { "Post_to_function": ["Succeeded"] },
+        "inputs": {
+          "statusCode": 200,
+          "body": {
+            "status": "ok",
+            "accepted": "@length(body('Project_to_contract'))",
+            "message": "Accepted"
+          }
+        }
+      },
+      "Respond_error": {
+        "type": "Response",
+        "runAfter": { "Post_to_function": ["Failed", "TimedOut"] },
+        "inputs": {
+          "statusCode": 502,
+          "body": {
+            "status": "error",
+            "accepted": 0,
+            "message": "Function call failed — payload retained on device"
+          }
+        }
+      }
+    },
+    "outputs": {}
+  }
+}

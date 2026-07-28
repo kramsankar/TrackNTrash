@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: TrackNTrash Tracking API
+  version: "1.0.0"
+  description: >
+    Event ingestion, shipment-line state machine, manifest sync and exception surface
+    for the TrackNTrash dispatch track-and-trace system (Module 6).
+servers:
+  - url: http://localhost:5090
+paths:
+  /health:
+    get:
+      tags: [System]
+      responses:
+        "200": { description: OK }
+
+  /events/scan:
+    post:
+      tags: [Events]
+      summary: Ingest a single scan/verification event (append-only, idempotent).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScanEventDto" }
+      responses:
+        "200":
+          description: Ingest result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/IngestResult" }
+        "400": { description: Missing clientEventId or deviceId }
+
+  /events/scan/batch:
+    post:
+      tags: [Events]
+      summary: Ingest a batch of events (best-effort, idempotent per event).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: "#/components/schemas/ScanEventDto" }
+      responses:
+        "200": { description: Batch result }
+
+  /manifests:
+    get:
+      tags: [Manifests]
+      summary: Delta-sync tray manifests changed at/after `since` (edge module pull).
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200": { description: Manifests }
+    put:
+      tags: [Manifests]
+      summary: Upsert a tray manifest (from trip planning / D365).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ManifestDto" }
+      responses:
+        "200": { description: Upserted }
+        "400": { description: Missing trayQr }
+
+  /shipment-lines/{orderLineId}/state:
+    get:
+      tags: [State]
+      parameters:
+        - name: orderLineId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Current derived state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShipmentLineState" }
+
+  /exceptions/open:
+    get:
+      tags: [Exceptions]
+      responses:
+        "200": { description: Open exceptions }
+
+  /admin/sweep:
+    post:
+      tags: [Admin]
+      summary: Manually trigger the time-based exception sweep.
+      responses:
+        "200": { description: Exceptions raised }
+
+components:
+  schemas:
+    ScanEventDto:
+      type: object
+      required: [clientEventId, eventType, deviceId]
+      properties:
+        clientEventId: { type: string, description: "Idempotency key (with deviceId)" }
+        eventType:
+          type: string
+          enum: [TrayBuildComplete, DockVerification, TripLoadScan, TelemetryDepart,
+                 ReceivingComplete, TrayBind, CartonScan, StoreReceiveScan,
+                 TrayCustodyTransfer, EmptyTrayReturn]
+        checkpoint:
+          type: string
+          enum: [PickTrayBuild, DispatchDock, VehicleLoad, StoreReceive]
+        deviceId: { type: string }
+        userId: { type: string, nullable: true }
+        scannedQr: { type: string, nullable: true }
+        orderLineId: { type: integer, format: int64, nullable: true }
+        orderLineRef: { type: string, nullable: true }
+        cartonId: { type: integer, format: int64, nullable: true }
+        trayId: { type: integer, nullable: true }
+        trayQr: { type: string, nullable: true }
+        tripId: { type: integer, format: int64, nullable: true }
+        storeId: { type: integer, nullable: true }
+        verdict:
+          type: string
+          nullable: true
+          enum: [PASS, COUNT_MISMATCH, UNKNOWN_CARTON, MISSING_CARTON, WRONG_TRIP, SHORT]
+        meta: { type: string, nullable: true, description: "Event-specific JSON" }
+        eventUtc: { type: string, format: date-time, nullable: true }
+
+    ManifestDto:
+      type: object
+      required: [trayQr]
+      properties:
+        trayQr: { type: string }
+        tripId: { type: integer, format: int64, nullable: true }
+        expectedCartonCount: { type: integer }
+        expectedCartonPayloads:
+          type: array
+          items: { type: string }
+
+    IngestResult:
+      type: object
+      properties:
+        accepted: { type: boolean }
+        duplicate: { type: boolean }
+        scanEventId: { type: integer, format: int64, nullable: true }
+        newState: { $ref: "#/components/schemas/ShipmentStateEnum" }
+        transitionLegal: { type: boolean }
+        exceptions:
+          type: array
+          items: { $ref: "#/components/schemas/TrackException" }
+
+    ShipmentLineState:
+      type: object
+      properties:
+        orderLineId: { type: integer, format: int64 }
+        currentState: { $ref: "#/components/schemas/ShipmentStateEnum" }
+        previousState: { $ref: "#/components/schemas/ShipmentStateEnum" }
+        lastEventId: { type: integer, format: int64, nullable: true }
+        pickedCartons: { type: integer }
+        receivedCartons: { type: integer }
+        stateEnteredUtc: { type: string, format: date-time }
+
+    TrackException:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [CountMismatch, UnknownCarton, MissingCarton, WrongTrip, WrongStore,
+                 IllegalTransition, TrayDwellExceeded, NoReceiveSla, SuspectedLost,
+                 Damaged, ShortShipped]
+        severity: { type: string, enum: [Low, Medium, High, Critical] }
+        checkpoint: { type: string, nullable: true }
+        orderLineId: { type: integer, format: int64, nullable: true }
+        trayId: { type: integer, nullable: true }
+        tripId: { type: integer, format: int64, nullable: true }
+        triggeringEventId: { type: integer, format: int64, nullable: true }
+        detail: { type: string }
+        frameBlobUri: { type: string, nullable: true }
+        createdUtc: { type: string, format: date-time }
+
+    ShipmentStateEnum:
+      type: string
+      nullable: true
+      enum: [Ordered, Picked, Staged, Loaded, InTransit, Received,
+             ShortShipped, Damaged, WrongStore, Lost]

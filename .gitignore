@@ -1,0 +1,63 @@
+# ---------- .NET ----------
+bin/
+obj/
+*.user
+*.suo
+.vs/
+project.lock.json
+artifacts/
+*.nupkg
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.onnx
+runs/
+weights/
+datasets/
+
+# ---------- Node / React ----------
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.local
+
+# ---------- Power Platform ----------
+*.msapp.unpacked/
+*.zip.bak
+
+# ---------- Azure / infra ----------
+*.azurewebsites.publishsettings
+local.settings.json
+.azure/
+*.tfstate*
+
+# ---------- Secrets / env ----------
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+
+# ---------- OS / editor ----------
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---------- Logs / temp ----------
+*.log
+tmp/
+temp/
