@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:zxing="clr-namespace:ZXing.Net.Maui.Controls;assembly=ZXing.Net.MAUI.Controls"
+             x:Class="TrackNTrash.DriverApp.Views.LoadingPage"
+             Title="Load Trip">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="12" RowSpacing="10">
+
+        <!-- Header -->
+        <VerticalStackLayout Grid.Row="0">
+            <Label Text="{Binding TripNumber}" FontSize="22" FontAttributes="Bold" />
+            <Label Text="{Binding Progress}" FontSize="16" />
+        </VerticalStackLayout>
+
+        <!-- Banner (green success / red wrong-trip) -->
+        <Border Grid.Row="1" Padding="12" StrokeThickness="0">
+            <Border.Background>
+                <MultiBinding Converter="{StaticResource BannerColor}">
+                    <Binding Path="BannerIsError" />
+                </MultiBinding>
+            </Border.Background>
+            <Label Text="{Binding Banner}" TextColor="White" FontSize="18" FontAttributes="Bold"
+                   HorizontalOptions="Center" />
+        </Border>
+
+        <!-- Tray list grouped by stop -->
+        <CollectionView Grid.Row="2" ItemsSource="{Binding Trays}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="8" ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout>
+                            <Label Text="{Binding Planned.TrayQr}" FontAttributes="Bold" />
+                            <Label Text="{Binding Planned.StopSequence, StringFormat='Stop {0}'}" FontSize="12" />
+                        </VerticalStackLayout>
+                        <Label Grid.Column="1" Text="{Binding Loaded, Converter={StaticResource LoadedTick}}"
+                               FontSize="20" VerticalOptions="Center" />
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Scanner + depart -->
+        <VerticalStackLayout Grid.Row="3" Spacing="8">
+            <zxing:CameraBarcodeReaderView x:Name="Scanner" HeightRequest="180"
+                                           BarcodesDetected="OnBarcodesDetected" />
+            <Button Text="Depart" Clicked="OnDepartClicked" IsEnabled="{Binding IsLocked}" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

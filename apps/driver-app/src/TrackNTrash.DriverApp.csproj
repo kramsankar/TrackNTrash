@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Requires the MAUI workload: `dotnet workload install maui` -->
+    <TargetFrameworks>net8.0-android;net8.0-ios</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>TrackNTrash.DriverApp</RootNamespace>
+    <ApplicationTitle>TrackNTrash Driver</ApplicationTitle>
+    <ApplicationId>com.tracktrash.driver</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.100" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <!-- Camera-based QR scanning for MAUI -->
+    <PackageReference Include="ZXing.Net.MAUI" Version="0.4.0" />
+    <PackageReference Include="ZXing.Net.MAUI.Controls" Version="0.4.0" />
+    <!-- Offline queue -->
+    <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+  </ItemGroup>
+
+</Project>
