@@ -62,3 +62,7 @@ Thumbs.db
 *.log
 tmp/
 temp/
+
+# Signing keys / local secrets (never commit)
+.secrets/
+*.keystore
