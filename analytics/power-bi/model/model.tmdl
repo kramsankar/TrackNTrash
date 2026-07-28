@@ -1,0 +1,190 @@
+// TrackNTrash semantic model (TMDL). Import into Power BI Desktop (Tabular Model / TMDL view)
+// or deploy via the XMLA endpoint. Source = Azure SQL `mart` schema (DirectQuery or Import).
+// Only the model skeleton, key relationships, RLS role and representative measures are shown;
+// full measure DAX is in ../dax/measures.md.
+
+model TrackNTrash
+	culture: en-GB
+	defaultPowerBIDataSourceVersion: powerBI_V3
+
+table DimDate
+	dataCategory: Time
+	column DateKey
+		dataType: int64
+		isKey
+	column Date
+		dataType: dateTime
+		isNullable: false
+	column YearMonth
+		dataType: string
+	column Year
+		dataType: int64
+
+table DimStore
+	column StoreKey
+		dataType: int64
+		isKey
+	column StoreId
+		dataType: int64
+	column StoreCode
+		dataType: string
+	column StoreName
+		dataType: string
+	column Region
+		dataType: string
+
+table DimCheckpoint
+	column CheckpointKey
+		dataType: int64
+		isKey
+	column CheckpointCode
+		dataType: string
+	column CheckpointName
+		dataType: string
+
+table DimRoute
+	column RouteKey
+		dataType: int64
+		isKey
+	column RouteCode
+		dataType: string
+
+table DimVehicle
+	column VehicleKey
+		dataType: int64
+		isKey
+	column Registration
+		dataType: string
+
+table DimProduct
+	column ProductKey
+		dataType: int64
+		isKey
+	column Gtin
+		dataType: string
+	column Description
+		dataType: string
+
+table FactShipmentLine
+	column OrderLineId
+		dataType: int64
+		isKey
+	column DateKey
+		dataType: int64
+	column StoreKey
+		dataType: int64
+	column ExpectedCartons
+		dataType: int64
+	column ReceivedCartons
+		dataType: int64
+	column FinalState
+		dataType: string
+	column IsReceivedClean
+		dataType: boolean
+	column OnTime
+		dataType: boolean
+
+table FactScanEvent
+	column ScanEventId
+		dataType: int64
+		isKey
+	column DateKey
+		dataType: int64
+	column CheckpointKey
+		dataType: int64
+	column StoreKey
+		dataType: int64
+	column EventType
+		dataType: string
+	column Verdict
+		dataType: string
+	column IsFirstScanMatch
+		dataType: boolean
+	column IngestLatencyMs
+		dataType: int64
+
+table FactException
+	column ExceptionId
+		dataType: int64
+		isKey
+	column DateKey
+		dataType: int64
+	column CheckpointKey
+		dataType: int64
+	column StoreKey
+		dataType: int64
+	column ExceptionType
+		dataType: string
+	column Severity
+		dataType: string
+	column Status
+		dataType: string
+	column ResolutionMinutes
+		dataType: int64
+
+table FactTrayTrip
+	column TrayTripId
+		dataType: int64
+		isKey
+	column DateKey
+		dataType: int64
+	column RouteKey
+		dataType: int64
+	column StoreKey
+		dataType: int64
+	column TrayId
+		dataType: int64
+	column Returned
+		dataType: boolean
+	column DwellHours
+		dataType: double
+
+table _Measures
+	measure 'Dispatch Accuracy %' = DIVIDE ( [Lines Received Clean], [Lines Shipped] )
+		formatString: 0.0%
+	measure 'Lines Shipped' = CALCULATE ( COUNTROWS ( FactShipmentLine ), FactShipmentLine[FinalState] IN { "Loaded","InTransit","Received","ShortShipped","Damaged","WrongStore","Lost" } )
+	measure 'Lines Received Clean' = CALCULATE ( COUNTROWS ( FactShipmentLine ), FactShipmentLine[IsReceivedClean] = TRUE() )
+	measure 'Open Exceptions' = CALCULATE ( COUNTROWS ( FactException ), FactException[Status] IN { "Open","Acknowledged","Escalated" } )
+	measure 'Dock Pass Rate %' = DIVIDE ( CALCULATE ( COUNTROWS ( FactScanEvent ), FactScanEvent[EventType]="DockVerification", FactScanEvent[Verdict]="PASS" ), CALCULATE ( COUNTROWS ( FactScanEvent ), FactScanEvent[EventType]="DockVerification" ) )
+		formatString: 0.0%
+	measure 'Tray Loss %' = DIVIDE ( CALCULATE ( COUNTROWS ( FactTrayTrip ), FactTrayTrip[Returned]=FALSE() ), COUNTROWS ( FactTrayTrip ) )
+		formatString: 0.0%
+	measure 'OTIF %' = DIVIDE ( CALCULATE ( COUNTROWS ( FactShipmentLine ), FactShipmentLine[IsReceivedClean]=TRUE(), FactShipmentLine[OnTime]=TRUE() ), [Lines Shipped] )
+		formatString: 0.0%
+
+// ---- Relationships (all single-direction, dimension → fact) ----
+relationship DimDate_FactShipmentLine
+	fromColumn: FactShipmentLine.DateKey
+	toColumn: DimDate.DateKey
+relationship DimStore_FactShipmentLine
+	fromColumn: FactShipmentLine.StoreKey
+	toColumn: DimStore.StoreKey
+relationship DimDate_FactScanEvent
+	fromColumn: FactScanEvent.DateKey
+	toColumn: DimDate.DateKey
+relationship DimCheckpoint_FactScanEvent
+	fromColumn: FactScanEvent.CheckpointKey
+	toColumn: DimCheckpoint.CheckpointKey
+relationship DimDate_FactException
+	fromColumn: FactException.DateKey
+	toColumn: DimDate.DateKey
+relationship DimCheckpoint_FactException
+	fromColumn: FactException.CheckpointKey
+	toColumn: DimCheckpoint.CheckpointKey
+relationship DimStore_FactTrayTrip
+	fromColumn: FactTrayTrip.StoreKey
+	toColumn: DimStore.StoreKey
+relationship DimRoute_FactTrayTrip
+	fromColumn: FactTrayTrip.RouteKey
+	toColumn: DimRoute.RouteKey
+
+// ---- Row-level security: store managers see only their store ----
+role StoreManager
+	modelPermission: read
+	tablePermission DimStore = DimStore[StoreCode] = LOOKUPVALUE ( UserStoreMap[StoreCode], UserStoreMap[Upn], USERPRINCIPALNAME() )
+
+role Admin
+	modelPermission: read
+
+// UserStoreMap (Upn -> StoreCode) is a small security table loaded from Entra group membership
+// or a mapping list; the StoreManager role filters DimStore, which propagates to all facts.
