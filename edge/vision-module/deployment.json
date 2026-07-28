@@ -1,0 +1,73 @@
+{
+  "$comment": "IoT Edge deployment manifest for the dock vision module. Replace <ACR> and secrets.",
+  "modulesContent": {
+    "$edgeAgent": {
+      "properties.desired": {
+        "schemaVersion": "1.1",
+        "runtime": {
+          "type": "docker",
+          "settings": {
+            "minDockerVersion": "v1.25",
+            "registryCredentials": {
+              "acr": {
+                "address": "<ACR>.azurecr.io",
+                "username": "<ACR_USERNAME>",
+                "password": "<ACR_PASSWORD>"
+              }
+            }
+          }
+        },
+        "systemModules": {
+          "edgeAgent": {
+            "type": "docker",
+            "settings": { "image": "mcr.microsoft.com/azureiotedge-agent:1.5", "createOptions": "{}" }
+          },
+          "edgeHub": {
+            "type": "docker",
+            "status": "running",
+            "restartPolicy": "always",
+            "settings": { "image": "mcr.microsoft.com/azureiotedge-hub:1.5", "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"5671/tcp\":[{\"HostPort\":\"5671\"}],\"8883/tcp\":[{\"HostPort\":\"8883\"}]}}}" }
+          }
+        },
+        "modules": {
+          "dockvision": {
+            "version": "1.0",
+            "type": "docker",
+            "status": "running",
+            "restartPolicy": "always",
+            "settings": {
+              "image": "<ACR>.azurecr.io/tracktrash/dockvision:1.0",
+              "createOptions": "{\"HostConfig\":{\"Privileged\":true,\"Devices\":[{\"PathOnHost\":\"/dev/gpiomem\",\"PathInContainer\":\"/dev/gpiomem\",\"CgroupPermissions\":\"rwm\"}]}}"
+            },
+            "env": {
+              "BLOB_CONNECTION_STRING": { "value": "<blob connection string>" }
+            }
+          }
+        }
+      }
+    },
+    "$edgeHub": {
+      "properties.desired": {
+        "schemaVersion": "1.1",
+        "routes": {
+          "dockToHub": "FROM /messages/modules/dockvision/outputs/dockVerification INTO $upstream"
+        },
+        "storeAndForwardConfiguration": { "timeToLiveSecs": 604800 }
+      }
+    },
+    "dockvision": {
+      "properties.desired": {
+        "cameraRtspUrl": "rtsp://dock-cam.local/stream1",
+        "burstFrames": 5,
+        "qualityThreshold": 100.0,
+        "maxBurstRetries": 3,
+        "manifestSyncUrl": "https://tracktrash-tracking.azurewebsites.net/manifests",
+        "blobExceptionContainer": "exceptions",
+        "gpioRelayPin": 17,
+        "triggerMode": "motion",
+        "modelPath": "models/carton_yolov8n.onnx",
+        "confidence": 0.35
+      }
+    }
+  }
+}

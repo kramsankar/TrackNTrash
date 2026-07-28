@@ -1,0 +1,16 @@
+# Ultralytics dataset config — single-class carton detection (top-down dock view).
+# Layout:
+#   datasets/cartons/images/{train,val,test}/*.jpg
+#   datasets/cartons/labels/{train,val,test}/*.txt   (YOLO format: class cx cy w h, normalized)
+
+path: datasets/cartons
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: carton
+
+# Notes:
+# - 70/20/10 split. Keep empty-tray and over-count images represented in all splits.
+# - Every visible carton top face is one box, including partially occluded ones (see annotation-guidelines.md).
