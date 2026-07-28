@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "env": { "value": "prod" },
+    "location": { "value": "uksouth" },
+    "baseName": { "value": "tracktrash" },
+    "sqlAdminLogin": { "value": "tntadmin" },
+    "sqlAdminPassword": { "reference": { "keyVault": { "id": "/subscriptions/<sub>/resourceGroups/rg-tracktrash-shared/providers/Microsoft.KeyVault/vaults/kv-tracktrash-shared" }, "secretName": "sql-admin-password-prod" } },
+    "opsGroupObjectId": { "value": "<entra-ops-group-object-id>" }
+  }
+}

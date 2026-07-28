@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Label API — test
+        run: dotnet test services/label-api/LabelApi.sln -c Release
+      - name: Tracking API — test
+        run: dotnet test services/tracking-api/TrackingApi.sln -c Release
+      - name: D365 integration — test
+        run: dotnet test integration/d365/D365Integration.sln -c Release
+      - name: Asset API — build
+        run: dotnet build analytics/asset-registry/src/AssetApi/AssetApi.csproj -c Release
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Vision module — test
+        working-directory: edge/vision-module
+        run: |
+          pip install pytest
+          pytest tests/
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Exception console — build
+        working-directory: apps/exception-console
+        run: |
+          npm ci
+          npm run build
+
+  bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Bicep
+        run: az bicep build --file infra/bicep/main.bicep --stdout > /dev/null

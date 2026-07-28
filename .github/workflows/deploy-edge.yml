@@ -1,0 +1,43 @@
+name: Deploy Edge Module
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: choice
+        options: [dev, uat, prod]
+      imageTag:
+        description: Image tag (e.g. 1.0.3)
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: ACR build & push (dock vision)
+        run: |
+          az acr build \
+            --registry ${{ secrets.ACR_NAME }} \
+            --image tracktrash/dockvision:${{ inputs.imageTag }} \
+            edge/vision-module
+      - name: Update IoT Edge deployment
+        run: |
+          # Substitute the image tag into the manifest, then set modules on the device.
+          sed "s|tracktrash/dockvision:1.0|tracktrash/dockvision:${{ inputs.imageTag }}|g" \
+            edge/vision-module/deployment.json > /tmp/deployment.json
+          az iot edge set-modules \
+            --hub-name iot-tracktrash-${{ inputs.environment }} \
+            --device-id dock-gateway-01 \
+            --content /tmp/deployment.json
