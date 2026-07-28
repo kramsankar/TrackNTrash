@@ -3,6 +3,7 @@
    Run AFTER 01_schema.sql.
    ===================================================================================== */
 SET NOCOUNT ON;
+SET QUOTED_IDENTIFIER ON;   -- views persist this setting; required with filtered-index dependencies
 GO
 
 /* Current tray contents (active bindings only). */
@@ -51,7 +52,7 @@ SELECT e.ExceptionId, e.ExceptionType, e.Severity, e.Status,
        e.Detail, e.FrameBlobUri, e.PhotoBlobUri, e.CreatedUtc,
        DATEDIFF(MINUTE, e.CreatedUtc, SYSUTCDATETIME()) AS AgeMinutes
 FROM ops.Exception e
-LEFT JOIN ref.Checkpoint cp ON cp.CheckpointId = e.CheckpointId
+LEFT JOIN ref.[Checkpoint] cp ON cp.CheckpointId = e.CheckpointId
 WHERE e.Status IN ('Open','Acknowledged','Escalated');
 GO
 

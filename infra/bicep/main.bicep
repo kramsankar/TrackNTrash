@@ -12,6 +12,9 @@ param env string
 @description('Azure region')
 param location string = resourceGroup().location
 
+@description('Region for Azure SQL (some regions gate new SQL servers; override when needed)')
+param sqlLocation string = location
+
 @description('Base name; resources are suffixed with env.')
 param baseName string = 'tracktrash'
 
@@ -21,11 +24,19 @@ param sqlAdminLogin string
 @description('SQL admin password')
 param sqlAdminPassword string
 
-@description('Object id of the ops group granted Key Vault secret access')
+@description('Object id of the ops principal granted Key Vault secret access')
 param opsGroupObjectId string
+
+@description('Principal type for the ops Key Vault role assignment')
+@allowed(['Group', 'User', 'ServicePrincipal'])
+param opsPrincipalType string = 'Group'
 
 var suffix = '${baseName}-${env}'
 var tags = { system: 'TrackNTrash', env: env }
+
+// Deterministic per-resource-group token so globally-unique resource names don't collide.
+var uniq = uniqueString(resourceGroup().id)
+var uniq6 = take(uniq, 6)
 
 // ---------------- Observability ----------------
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
@@ -45,7 +56,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // ---------------- Key Vault ----------------
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: 'kv-${baseName}${env}'
+  name: take('kv-${baseName}${env}-${uniq6}', 24)
   location: location
   tags: tags
   properties: {
@@ -59,7 +70,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
 
 // ---------------- Storage (frames / photos) ----------------
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: replace('st${suffix}', '-', '')
+  name: take(replace(toLower('st${uniq}${env}'), '-', ''), 24)
   location: location
   tags: tags
   sku: { name: env == 'prod' ? 'Standard_ZRS' : 'Standard_LRS' }
@@ -116,9 +127,11 @@ resource lifecycle 'Microsoft.Storage/storageAccounts/managementPolicies@2023-05
 }
 
 // ---------------- Azure SQL ----------------
+// SQL server name is derived from the SQL region so switching regions never collides with a
+// stale record from a prior region-gated attempt.
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
-  name: 'sql-${suffix}'
-  location: location
+  name: 'sql-${suffix}-${take(uniqueString(resourceGroup().id, sqlLocation), 6)}'
+  location: sqlLocation
   tags: tags
   properties: {
     administratorLogin: sqlAdminLogin
@@ -131,7 +144,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
 resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: 'TrackNTrash'
-  location: location
+  location: sqlLocation
   tags: tags
   sku: env == 'prod' ? { name: 'S3', tier: 'Standard' } : { name: 'S1', tier: 'Standard' }
   properties: { collation: 'SQL_Latin1_General_CP1_CI_AS' }
@@ -145,7 +158,7 @@ resource sqlAllowAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' 
 
 // ---------------- Service Bus ----------------
 resource serviceBus 'Microsoft.ServiceBus/namespaces@2022-10-01-preview' = {
-  name: 'sb-${suffix}'
+  name: 'sb-${suffix}-${uniq6}'
   location: location
   tags: tags
   sku: { name: env == 'prod' ? 'Standard' : 'Standard', tier: 'Standard' }
@@ -169,7 +182,7 @@ resource sbRepairQueue 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-previe
 
 // ---------------- IoT Hub ----------------
 resource iotHub 'Microsoft.Devices/IotHubs@2023-06-30' = {
-  name: 'iot-${suffix}'
+  name: 'iot-${suffix}-${uniq6}'
   location: location
   tags: tags
   sku: { name: env == 'prod' ? 'S1' : 'S1', capacity: 1 }
@@ -185,7 +198,7 @@ resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 resource trackingApi 'Microsoft.Web/sites@2023-12-01' = {
-  name: 'app-tracking-${suffix}'
+  name: 'app-tracking-${suffix}-${uniq6}'
   location: location
   tags: tags
   identity: { type: 'SystemAssigned' }
@@ -206,7 +219,7 @@ resource trackingApi 'Microsoft.Web/sites@2023-12-01' = {
 
 // ---------------- Function Apps (tracking ingest, d365 integration, asset metrics) ----------------
 resource funcStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: replace('stf${suffix}', '-', '')
+  name: take(replace(toLower('stf${uniq}${env}'), '-', ''), 24)
   location: location
   tags: tags
   sku: { name: 'Standard_LRS' }
@@ -223,7 +236,7 @@ resource funcPlan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 resource trackingFunc 'Microsoft.Web/sites@2023-12-01' = {
-  name: 'func-tracking-${suffix}'
+  name: 'func-tracking-${suffix}-${uniq6}'
   location: location
   tags: tags
   kind: 'functionapp'
@@ -266,7 +279,7 @@ resource funcBlobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
 resource opsKvRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(keyVault.id, opsGroupObjectId, 'kvsecrets')
   scope: keyVault
-  properties: { roleDefinitionId: kvSecretsUser, principalId: opsGroupObjectId, principalType: 'Group' }
+  properties: { roleDefinitionId: kvSecretsUser, principalId: opsGroupObjectId, principalType: opsPrincipalType }
 }
 
 output trackingApiUrl string = 'https://${trackingApi.properties.defaultHostName}'

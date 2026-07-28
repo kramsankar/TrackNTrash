@@ -41,7 +41,7 @@ BEGIN
          OrderLineId, CartonId, TrayId, StoreId, TripId, Verdict, PayloadJson, EventUtc)
     VALUES
         (@eventType,
-         (SELECT CheckpointId FROM ref.Checkpoint WHERE CheckpointCode = @checkpoint),
+         (SELECT CheckpointId FROM ref.[Checkpoint] WHERE CheckpointCode = @checkpoint),
          @deviceId, @userId, @cid, @scannedQr,
          @orderLineId, @cartonId, @trayId, @storeId, @tripId, @verdict, @payload, @eventUtc);
     SELECT CAST(SCOPE_IDENTITY() AS bigint) AS ScanEventId, CAST(0 AS bit) AS Duplicate;

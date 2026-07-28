@@ -35,7 +35,7 @@ BEGIN
     WHEN NOT MATCHED THEN INSERT (Gtin, Description) VALUES (s.Gtin, s.Descr);
 
     MERGE mart.DimCheckpoint AS t
-    USING (SELECT CheckpointId, CheckpointCode, Name FROM ref.Checkpoint) AS s
+    USING (SELECT CheckpointId, CheckpointCode, Name FROM ref.[Checkpoint]) AS s
     ON t.CheckpointId = s.CheckpointId
     WHEN NOT MATCHED THEN INSERT (CheckpointId, CheckpointCode, CheckpointName)
         VALUES (s.CheckpointId, s.CheckpointCode, s.Name);

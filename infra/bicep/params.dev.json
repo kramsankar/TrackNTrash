@@ -4,6 +4,7 @@
   "parameters": {
     "env": { "value": "dev" },
     "location": { "value": "uksouth" },
+    "sqlLocation": { "value": "francecentral" },
     "baseName": { "value": "tracktrash" },
     "sqlAdminLogin": { "value": "tntadmin" },
     "sqlAdminPassword": { "reference": { "keyVault": { "id": "/subscriptions/<sub>/resourceGroups/rg-tracktrash-shared/providers/Microsoft.KeyVault/vaults/kv-tracktrash-shared" }, "secretName": "sql-admin-password-dev" } },

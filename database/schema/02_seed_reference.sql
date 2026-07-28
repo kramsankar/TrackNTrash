@@ -7,7 +7,7 @@ SET NOCOUNT ON;
 GO
 
 /* ---- Checkpoints ------------------------------------------------------------------ */
-MERGE ref.Checkpoint AS t
+MERGE ref.[Checkpoint] AS t
 USING (VALUES
     (1, 'PickTrayBuild', N'Pick & Tray Build', 1),
     (2, 'DispatchDock',  N'Dispatch Dock',     2),

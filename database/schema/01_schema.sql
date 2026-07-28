@@ -21,6 +21,7 @@
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+SET QUOTED_IDENTIFIER ON;   -- required for filtered indexes and indexed views
 GO
 
 IF SCHEMA_ID(N'ops') IS NULL EXEC(N'CREATE SCHEMA ops AUTHORIZATION dbo;');
@@ -47,7 +48,7 @@ GO
    ===================================================================================== */
 
 -- Fixed set of physical checkpoints in the flow.
-CREATE TABLE ref.Checkpoint
+CREATE TABLE ref.[Checkpoint]
 (
     CheckpointId   TINYINT       NOT NULL CONSTRAINT PK_Checkpoint PRIMARY KEY,
     CheckpointCode VARCHAR(20)   NOT NULL,   -- PickTrayBuild | DispatchDock | VehicleLoad | StoreReceive
@@ -73,7 +74,7 @@ CREATE TABLE ref.EventType
 (
     EventTypeCode VARCHAR(30)  NOT NULL CONSTRAINT PK_EventType PRIMARY KEY,
     Name          NVARCHAR(80) NOT NULL,
-    CheckpointId  TINYINT      NULL CONSTRAINT FK_EventType_Checkpoint REFERENCES ref.Checkpoint(CheckpointId)
+    CheckpointId  TINYINT      NULL CONSTRAINT FK_EventType_Checkpoint REFERENCES ref.[Checkpoint](CheckpointId)
 );
 GO
 
@@ -116,7 +117,7 @@ CREATE TABLE ops.Device
     DeviceId     INT          IDENTITY(1,1) NOT NULL CONSTRAINT PK_Device PRIMARY KEY,
     DeviceCode   NVARCHAR(60) NOT NULL,       -- handheld id / edge module id / telematics id
     DeviceType   VARCHAR(20)  NOT NULL,       -- Handheld | EdgeCamera | Telematics | Api
-    CheckpointId TINYINT      NULL CONSTRAINT FK_Device_Checkpoint REFERENCES ref.Checkpoint(CheckpointId),
+    CheckpointId TINYINT      NULL CONSTRAINT FK_Device_Checkpoint REFERENCES ref.[Checkpoint](CheckpointId),
     SiteCode     NVARCHAR(20) NULL,
     IsActive     BIT          NOT NULL CONSTRAINT DF_Device_Active DEFAULT (1),
     CreatedUtc   DATETIME2(3) NOT NULL CONSTRAINT DF_Device_Created DEFAULT (SYSUTCDATETIME()),
@@ -225,7 +226,7 @@ CREATE TABLE ops.ScanEvent
 (
     ScanEventId   BIGINT         IDENTITY(1,1) NOT NULL CONSTRAINT PK_ScanEvent PRIMARY KEY,
     EventType     VARCHAR(30)    NOT NULL CONSTRAINT FK_ScanEvent_EventType REFERENCES ref.EventType(EventTypeCode),
-    CheckpointId  TINYINT        NULL CONSTRAINT FK_ScanEvent_Checkpoint REFERENCES ref.Checkpoint(CheckpointId),
+    CheckpointId  TINYINT        NULL CONSTRAINT FK_ScanEvent_Checkpoint REFERENCES ref.[Checkpoint](CheckpointId),
     DeviceId      INT            NULL CONSTRAINT FK_ScanEvent_Device REFERENCES ops.Device(DeviceId),
     UserId        NVARCHAR(120)  NULL,
     ClientEventId NVARCHAR(60)   NOT NULL,        -- client-generated id for idempotency
@@ -388,7 +389,7 @@ CREATE TABLE ops.Exception
     Severity           VARCHAR(10)   NOT NULL CONSTRAINT DF_Exception_Sev DEFAULT ('Medium'),
     Status             VARCHAR(15)   NOT NULL CONSTRAINT DF_Exception_Status DEFAULT ('Open'),
                        -- Open | Acknowledged | Escalated | Resolved
-    CheckpointId       TINYINT       NULL CONSTRAINT FK_Exception_Checkpoint REFERENCES ref.Checkpoint(CheckpointId),
+    CheckpointId       TINYINT       NULL CONSTRAINT FK_Exception_Checkpoint REFERENCES ref.[Checkpoint](CheckpointId),
     OrderLineId        BIGINT        NULL CONSTRAINT FK_Exception_OrderLine  REFERENCES ops.OrderLine(OrderLineId),
     CartonId           BIGINT        NULL CONSTRAINT FK_Exception_Carton     REFERENCES ops.Carton(CartonId),
     TrayId             INT           NULL CONSTRAINT FK_Exception_Tray       REFERENCES ops.Tray(TrayId),
