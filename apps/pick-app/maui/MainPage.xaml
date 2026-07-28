@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="TrackNTrash.PickApp.MainPage"
+             BackgroundColor="#0f1420"
+             Title="TrackNTrash Pick">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="22" Spacing="16" MaximumWidthRequest="640" HorizontalOptions="Center">
+
+            <!-- Header -->
+            <VerticalStackLayout Spacing="2">
+                <Label Text="TrackNTrash · Pick &amp; Tray Build" FontSize="22" FontAttributes="Bold" TextColor="#e7ecf6" />
+                <Label x:Name="lblConn" Text="Connecting…" FontSize="13" TextColor="#9aa6ba" />
+            </VerticalStackLayout>
+
+            <!-- Banner -->
+            <Border x:Name="banner" IsVisible="False" StrokeThickness="0" Padding="12" StrokeShape="RoundRectangle 8">
+                <Label x:Name="lblBanner" TextColor="White" FontSize="15" FontAttributes="Bold" HorizontalOptions="Center" />
+            </Border>
+
+            <!-- 1. Order -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="1 · ORDER" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Entry x:Name="txtOrder" Placeholder="Order number" Text="SO-PICK-01" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtStore" Placeholder="Store code" Text="S-LDN1" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtGtin" Placeholder="GTIN" Text="09501234567891" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtExpected" Placeholder="Expected cartons" Text="3" Keyboard="Numeric" TextColor="#e7ecf6" />
+                    <Button x:Name="btnStart" Text="Start order" Clicked="OnStartOrder" BackgroundColor="#2f66e6" TextColor="White" />
+                    <Label x:Name="lblOrder" Text="" FontSize="13" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 2. Tray -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="2 · TRAY" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Entry x:Name="txtTray" Placeholder="Scan / type tray QR (e.g. TRAY-LDN1-000001)" Text="TRAY-LDN1-000001" TextColor="#e7ecf6" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 3. Cartons -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="3 · SCAN CARTONS" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Label Text="Scan a carton QR and press Enter (USB scanner or keyboard). Duplicates are blocked."
+                           FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtCarton" Placeholder="Scan carton QR then Enter…" Completed="OnCartonScanned" TextColor="#e7ecf6" />
+                    <Label x:Name="lblTally" Text="0 scanned" FontSize="16" FontAttributes="Bold" TextColor="#43b477" />
+                    <CollectionView x:Name="listCartons" HeightRequest="140">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Label Text="{Binding .}" FontSize="13" TextColor="#e7ecf6" Padding="0,3" />
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 4. Complete -->
+            <Button x:Name="btnComplete" Text="Complete tray build" Clicked="OnComplete" IsEnabled="False"
+                    BackgroundColor="#43b477" TextColor="White" HeightRequest="48" />
+
+            <!-- Activity -->
+            <Border BackgroundColor="#131a27" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="ACTIVITY" FontSize="12" TextColor="#9aa6ba" FontAttributes="Bold" />
+                    <Label x:Name="lblLog" Text="Ready." FontSize="12" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

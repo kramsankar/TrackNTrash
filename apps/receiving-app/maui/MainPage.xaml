@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="TrackNTrash.ReceivingApp.MainPage"
+             BackgroundColor="#0f1420"
+             Title="TrackNTrash Receiving">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="22" Spacing="16" MaximumWidthRequest="640" HorizontalOptions="Center">
+
+            <VerticalStackLayout Spacing="2">
+                <Label Text="TrackNTrash · Store Receiving" FontSize="22" FontAttributes="Bold" TextColor="#e7ecf6" />
+                <Label x:Name="lblConn" Text="Connecting…" FontSize="13" TextColor="#9aa6ba" />
+            </VerticalStackLayout>
+
+            <Border x:Name="banner" IsVisible="False" StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 8">
+                <Label x:Name="lblBanner" TextColor="White" FontSize="16" FontAttributes="Bold" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+            </Border>
+
+            <!-- 1. Delivery setup (ASN) -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="1 · DELIVERY (ASN)" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Entry x:Name="txtTray" Placeholder="Tray QR" Text="TRAY-RCV-01" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtStore" Placeholder="Store code" Text="S-LDN1" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtExpected" Placeholder="Expected carton payloads (comma-separated)" Text="C-A, C-B, C-C" TextColor="#e7ecf6" />
+                    <Button x:Name="btnStart" Text="Set up &amp; start receiving" Clicked="OnStart" BackgroundColor="#2f66e6" TextColor="White" />
+                    <Label x:Name="lblSession" Text="" FontSize="13" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 2. Scan cartons -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="2 · RECEIVE CARTONS" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Label Text="Scan a carton then Enter. Not on the list → OVER (shows the correct store)."
+                           FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtScan" Placeholder="Scan carton payload then Enter…" Completed="OnScan" TextColor="#e7ecf6" />
+                    <Label x:Name="lblTally" Text="0 / 0 received" FontSize="16" FontAttributes="Bold" TextColor="#43b477" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 3. Complete (POD) -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="3 · PROOF OF DELIVERY" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Entry x:Name="txtReceiver" Placeholder="Receiver name" Text="Sam Store" TextColor="#e7ecf6" />
+                    <Button x:Name="btnComplete" Text="Complete delivery" Clicked="OnComplete" IsEnabled="False"
+                            BackgroundColor="#43b477" TextColor="White" HeightRequest="46" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border BackgroundColor="#131a27" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="ACTIVITY" FontSize="12" TextColor="#9aa6ba" FontAttributes="Bold" />
+                    <Label x:Name="lblLog" Text="Ready." FontSize="12" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

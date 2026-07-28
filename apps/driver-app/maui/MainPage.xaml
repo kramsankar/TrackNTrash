@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="TrackNTrash.DriverApp.MainPage"
+             BackgroundColor="#0f1420"
+             Title="TrackNTrash Driver">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="22" Spacing="16" MaximumWidthRequest="640" HorizontalOptions="Center">
+
+            <VerticalStackLayout Spacing="2">
+                <Label Text="TrackNTrash · Driver Loading" FontSize="22" FontAttributes="Bold" TextColor="#e7ecf6" />
+                <Label x:Name="lblConn" Text="Connecting…" FontSize="13" TextColor="#9aa6ba" />
+            </VerticalStackLayout>
+
+            <Border x:Name="banner" IsVisible="False" StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 8">
+                <Label x:Name="lblBanner" TextColor="White" FontSize="17" FontAttributes="Bold" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
+            </Border>
+
+            <!-- 1. Create trip (dispatcher) -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="1 · CREATE TRIP" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Entry x:Name="txtVehicle" Placeholder="Vehicle reg" Text="AB12 CDE" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtRoute" Placeholder="Route" Text="R-NORTH" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtStore" Placeholder="Stop store code" Text="S-LDN1" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtTray" Placeholder="Planned tray QR" Text="TRAY-LDN1-000001" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtLine" Placeholder="Order line id" Text="1" Keyboard="Numeric" TextColor="#e7ecf6" />
+                    <Button x:Name="btnCreate" Text="Create trip" Clicked="OnCreateTrip" BackgroundColor="#2f66e6" TextColor="White" />
+                    <Label x:Name="lblTrip" Text="" FontSize="13" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 2. Load -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="2 · LOAD AT DOCK" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Label Text="Scan a tray to load it. A tray that isn't on this trip is rejected with the correct trip number."
+                           FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtScan" Placeholder="Scan tray QR then Enter…" Text="TRAY-LDN1-000001" Completed="OnLoadScan" TextColor="#e7ecf6" />
+                    <Button Text="Load tray" Clicked="OnLoadScan" BackgroundColor="#2b3a5c" TextColor="White" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Button x:Name="btnDepart" Text="Depart (telemetry)" Clicked="OnDepart" IsEnabled="False"
+                    BackgroundColor="#43b477" TextColor="White" HeightRequest="48" />
+
+            <Border BackgroundColor="#131a27" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="ACTIVITY" FontSize="12" TextColor="#9aa6ba" FontAttributes="Bold" />
+                    <Label x:Name="lblLog" Text="Ready." FontSize="12" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
