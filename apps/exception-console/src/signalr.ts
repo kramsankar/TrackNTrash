@@ -9,6 +9,7 @@ import type { ConsoleException } from "./types";
 export function connectExceptionsHub(
   onRaised: (e: ConsoleException) => void,
   onUpdated: (e: ConsoleException) => void,
+  onConnectedChange?: (connected: boolean) => void,
   tokenFactory?: () => string | undefined
 ): HubConnection {
   const connection = new HubConnectionBuilder()
@@ -21,6 +22,11 @@ export function connectExceptionsHub(
 
   connection.on("exceptionRaised", onRaised);
   connection.on("exceptionUpdated", onUpdated);
-  connection.start().catch((err) => console.error("SignalR connect failed:", err));
+  connection.onreconnected(() => onConnectedChange?.(true));
+  connection.onreconnecting(() => onConnectedChange?.(false));
+  connection.onclose(() => onConnectedChange?.(false));
+  connection.start()
+    .then(() => onConnectedChange?.(true))
+    .catch((err) => { console.error("SignalR connect failed:", err); onConnectedChange?.(false); });
   return connection;
 }

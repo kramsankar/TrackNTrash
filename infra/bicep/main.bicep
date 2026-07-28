@@ -68,6 +68,24 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
+// Connection-string secrets (created control-plane via ARM; the app's managed identity reads
+// them at runtime through the Key Vault references in its app settings).
+resource sqlConnSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'sql-connection'
+  properties: {
+    value: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDb.name};User ID=${sqlAdminLogin};Password=${sqlAdminPassword};Encrypt=True;TrustServerCertificate=False;Connection Timeout=60;'
+  }
+}
+
+resource sbConnSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'servicebus-connection'
+  properties: {
+    value: listKeys(resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', serviceBus.name, 'RootManageSharedAccessKey'), '2022-10-01-preview').primaryConnectionString
+  }
+}
+
 // ---------------- Storage (frames / photos) ----------------
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: take(replace(toLower('st${uniq}${env}'), '-', ''), 24)

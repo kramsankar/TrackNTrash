@@ -43,6 +43,30 @@ public sealed record ScanEventDto
     };
 }
 
+/// <summary>Order intake (POST /orders) — creates SalesOrder + OrderLine master data.</summary>
+public sealed record OrderDto
+{
+    public string OrderNumber { get; init; } = "";
+    public string StoreCode { get; init; } = "";
+    public string? ErpReference { get; init; }
+    public List<OrderLineDto> Lines { get; init; } = new();
+
+    public Infrastructure.SqlOrderStore.OrderInput ToInput() => new(
+        OrderNumber, StoreCode, ErpReference,
+        Lines.Select(l => new Infrastructure.SqlOrderStore.OrderLineInput(
+            l.LineNumber, l.Gtin, l.OrderedQty, l.Uom, l.ExpectedCartonCount, l.ErpLineReference)).ToList());
+}
+
+public sealed record OrderLineDto
+{
+    public int LineNumber { get; init; }
+    public string Gtin { get; init; } = "";
+    public decimal OrderedQty { get; init; }
+    public string Uom { get; init; } = "EA";
+    public int ExpectedCartonCount { get; init; }
+    public string? ErpLineReference { get; init; }
+}
+
 /// <summary>Manifest upsert (PUT /manifests) — normally driven by trip planning / D365.</summary>
 public sealed record ManifestDto
 {

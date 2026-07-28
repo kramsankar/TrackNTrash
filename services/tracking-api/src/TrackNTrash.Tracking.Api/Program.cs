@@ -27,15 +27,22 @@ builder.Services.AddSingleton<ExceptionSeverityMatrix>(_ => new ExceptionSeverit
 
 // ---- Stores: SQL when a connection string is present, else in-memory ----
 var sqlCs = builder.Configuration.GetConnectionString("TrackNTrash");
-if (!string.IsNullOrWhiteSpace(sqlCs))
-    builder.Services.AddSingleton<IEventStore>(new SqlEventStore(sqlCs));
+var useSql = !string.IsNullOrWhiteSpace(sqlCs);
+if (useSql)
+{
+    builder.Services.AddSingleton<IEventStore>(new SqlEventStore(sqlCs!));
+    builder.Services.AddSingleton<IShipmentStateStore>(new SqlShipmentStateStore(sqlCs!));
+    builder.Services.AddSingleton<IExceptionStore>(new SqlExceptionStore(sqlCs!));
+    builder.Services.AddSingleton<IManifestStore>(new SqlManifestStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlOrderStore(sqlCs!));
+}
 else
+{
     builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
-
-// State / exception / manifest stores: in-memory by default (SQL variants follow the same shape).
-builder.Services.AddSingleton<IShipmentStateStore, InMemoryShipmentStateStore>();
-builder.Services.AddSingleton<IExceptionStore, InMemoryExceptionStore>();
-builder.Services.AddSingleton<IManifestStore, InMemoryManifestStore>();
+    builder.Services.AddSingleton<IShipmentStateStore, InMemoryShipmentStateStore>();
+    builder.Services.AddSingleton<IExceptionStore, InMemoryExceptionStore>();
+    builder.Services.AddSingleton<IManifestStore, InMemoryManifestStore>();
+}
 
 // ---- Console + SignalR (Module 12) ----
 builder.Services.AddSignalR();
@@ -73,9 +80,12 @@ builder.Services.AddSingleton<ReceivingService>();
 // Receiving sessions are per-tray/store; held server-side keyed by a session id for the demo API.
 builder.Services.AddSingleton<ReceivingSessionCache>();
 
-// CORS for the exception console (Vite dev server).
+// CORS for the exception console. Origins are configurable (Cors:Origins, comma-separated)
+// so the deployed console URL can be allowed alongside the Vite dev server.
+var corsOrigins = (builder.Configuration["Cors:Origins"] ?? "http://localhost:5173")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddPolicy("console", p => p
-    .WithOrigins("http://localhost:5173")
+    .WithOrigins(corsOrigins)
     .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
 var app = builder.Build();
@@ -85,6 +95,19 @@ app.UseSwaggerUI();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "TrackNTrash.Tracking.Api" }))
    .WithTags("System");
+
+// ---------- Order intake (D365 outbound target; creates master data for SQL FKs) ----------
+app.MapPost("/orders", async (OrderDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlOrderStore>();
+    if (store is null)
+        return Results.Problem("Order intake requires SQL persistence (set ConnectionStrings:TrackNTrash).", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.OrderNumber) || string.IsNullOrWhiteSpace(dto.StoreCode))
+        return Results.BadRequest(new { error = "orderNumber and storeCode are required." });
+    var lineIds = await store.CreateAsync(dto.ToInput(), ct);
+    return Results.Ok(new { dto.OrderNumber, dto.StoreCode, orderLineIds = lineIds });
+})
+.WithTags("Orders").WithName("CreateOrder");
 
 // ---------- Ingestion ----------
 app.MapPost("/events/scan", async (ScanEventDto dto, IngestionService svc, CancellationToken ct) =>

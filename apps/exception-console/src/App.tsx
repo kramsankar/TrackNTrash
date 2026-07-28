@@ -29,12 +29,10 @@ export default function App() {
       },
       (e) => { // updated
         setItems((prev) => prev.map((x) => (x.id === e.id ? e : x)));
-      }
+      },
+      (connected) => setLive(connected)   // live indicator tracks the real connection state
     );
-    conn.onreconnected(() => setLive(true));
-    conn.onclose(() => setLive(false));
-    const t = setTimeout(() => setLive(conn.state === "Connected"), 1200);
-    return () => { clearTimeout(t); conn.stop(); };
+    return () => { conn.stop(); };
   }, []);
 
   return (
