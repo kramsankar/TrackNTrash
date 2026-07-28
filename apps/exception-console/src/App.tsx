@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { api } from "./api";
+import { connectExceptionsHub } from "./signalr";
+import type { ConsoleException } from "./types";
 import { useDevUser } from "./auth";
 import { Dashboard } from "./views/Dashboard";
 import { Orders } from "./views/Orders";
@@ -22,6 +25,23 @@ export default function App() {
   const user = useDevUser();
   const [view, setView] = useState<View>("dashboard");
   const [live, setLive] = useState(false);
+  const [items, setItems] = useState<ConsoleException[]>([]);
+
+  // App-level exception feed: one SignalR connection for the whole app, so the live
+  // indicator and the shared exception list are accurate on every screen.
+  const refresh = useCallback(() => {
+    api.openExceptions(user.getToken()).then(setItems).catch(() => { /* ignore */ });
+  }, [user]);
+
+  useEffect(() => {
+    refresh();
+    const conn = connectExceptionsHub(
+      (e) => setItems((prev) => [e, ...prev.filter((x) => x.id !== e.id)]),
+      (e) => setItems((prev) => prev.map((x) => (x.id === e.id ? e : x))),
+      setLive
+    );
+    return () => { conn.stop(); };
+  }, []);
 
   const groups = [...new Set(MENU.map((m) => m.group))];
 
@@ -36,6 +56,7 @@ export default function App() {
             {MENU.filter((m) => m.group === g).map((m) => (
               <button key={m.id} className={`nav-item ${view === m.id ? "active" : ""}`} onClick={() => setView(m.id)}>
                 <span className="nav-icon">{m.icon}</span>{m.label}
+                {m.id === "exceptions" && items.length > 0 && <span className="nav-badge">{items.length}</span>}
               </button>
             ))}
           </div>
@@ -47,12 +68,12 @@ export default function App() {
       </aside>
 
       <main className="content">
-        {view === "dashboard" && <Dashboard user={user} onNavigate={(v) => setView(v as View)} />}
+        {view === "dashboard" && <Dashboard items={items} onNavigate={(v) => setView(v as View)} />}
         {view === "orders" && <Orders user={user} />}
         {view === "trips" && <Trips user={user} />}
         {view === "manifests" && <Manifests user={user} />}
         {view === "lookup" && <LineLookup user={user} />}
-        {view === "exceptions" && <ExceptionsView user={user} onLive={setLive} />}
+        {view === "exceptions" && <ExceptionsView items={items} user={user} refresh={refresh} />}
       </main>
     </div>
   );

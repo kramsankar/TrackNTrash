@@ -18,6 +18,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .nav-item:hover { background: var(--panel2); }
 .nav-item.active { background: var(--panel2); border-left-color: var(--accent); font-weight: 600; }
 .nav-icon { width: 18px; text-align: center; }
+.nav-badge { margin-left: auto; background: var(--high); color: #fff; border-radius: 999px; font-size: 11px; padding: 1px 7px; font-weight: 700; }
 .sidebar-foot { margin-top: auto; padding: 14px 18px 4px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
 .live.on { color: var(--low); } .live.off { color: var(--muted); }
 .user { color: var(--muted); text-align: right; }

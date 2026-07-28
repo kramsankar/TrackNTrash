@@ -1,16 +1,14 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { ConsoleException } from "../types";
-import type { CurrentUser } from "../auth";
 
-export function Dashboard({ user, onNavigate }: { user: CurrentUser; onNavigate: (v: string) => void }) {
-  const [exceptions, setExceptions] = useState<ConsoleException[]>([]);
+export function Dashboard({ items, onNavigate }: { items: ConsoleException[]; onNavigate: (v: string) => void }) {
+  const exceptions = items;   // shared live list from the app shell
   const [health, setHealth] = useState<string>("…");
 
   useEffect(() => {
-    api.openExceptions(user.getToken()).then(setExceptions).catch(() => setExceptions([]));
     api.health().then((h) => setHealth(h.status)).catch(() => setHealth("unreachable"));
-  }, [user]);
+  }, []);
 
   const open = exceptions.filter((e) => e.status === "Open").length;
   const critical = exceptions.filter((e) => e.severity === "Critical").length;
