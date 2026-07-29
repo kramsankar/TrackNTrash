@@ -33,6 +33,10 @@ DECLARE @fromType VARCHAR(20), @fromRef NVARCHAR(40);
 SELECT @fromType = CurrentCustodianType, @fromRef = CurrentCustodianRef
 FROM ops.Tray WHERE TrayId=@tid;
 
+-- An event that names no holder (a tray built in the warehouse it already sits in)
+-- must not blank the one on record.
+SET @toRef = ISNULL(@toRef, @fromRef);
+
 -- Nothing to record when the tray has not actually moved.
 IF (@fromType = @toType AND ISNULL(@fromRef,'') = ISNULL(@toRef,'')) RETURN;
 
