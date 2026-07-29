@@ -12,6 +12,7 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
         _ = CheckHealth();
+        RefreshAuthUi();
     }
 
     private async Task CheckHealth()
@@ -88,4 +89,44 @@ public partial class MainPage : ContentPage
     }
 
     private void Log(string line) => lblLog.Text = line + "\n" + lblLog.Text;
+
+    // ---- Sign in -------------------------------------------------------------------
+    // The tracking API guards every operational endpoint, so nothing below works until
+    // a token is in hand. A token from a previous run is restored on construction.
+
+    private void RefreshAuthUi()
+    {
+        bool on = _api.Auth.IsSignedIn;
+        workArea.IsEnabled = on;
+        workArea.Opacity = on ? 1 : 0.45;
+        btnSignIn.IsVisible = !on;
+        btnSignOut.IsVisible = on;
+        txtUser.IsVisible = !on;
+        txtPass.IsVisible = !on;
+        lblAuth.Text = on
+            ? $"✓ Signed in as {_api.Auth.Username}"
+            : "The tracking API only accepts scans from a signed-in user.";
+        lblAuth.TextColor = Color.FromArgb(on ? "#43b477" : "#9aa6ba");
+    }
+
+    private async void OnSignIn(object? sender, EventArgs e)
+    {
+        btnSignIn.IsEnabled = false;
+        try
+        {
+            var error = await _api.Auth.SignInAsync(_api.Http, txtUser.Text?.Trim() ?? "", txtPass.Text ?? "");
+            if (error is not null) { Banner(error, true); return; }
+            txtPass.Text = "";
+            RefreshAuthUi();
+            Banner($"Signed in as {_api.Auth.Username}", false);
+        }
+        finally { btnSignIn.IsEnabled = true; }
+    }
+
+    private void OnSignOut(object? sender, EventArgs e)
+    {
+        _api.Auth.SignOut(_api.Http);
+        RefreshAuthUi();
+        Banner("Signed out.", false);
+    }
 }

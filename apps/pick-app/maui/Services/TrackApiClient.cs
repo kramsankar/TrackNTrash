@@ -14,7 +14,18 @@ public sealed class TrackApiClient
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     { Converters = { new JsonStringEnumConverter() } };
 
-    public TrackApiClient() => _http = new HttpClient { BaseAddress = new Uri(BaseUrl), Timeout = TimeSpan.FromSeconds(30) };
+    /// <summary>The signed-in user's token; every guarded endpoint needs it.</summary>
+    public AuthSession Auth { get; } = new();
+
+    /// <summary>Exposed so the sign-in card can post credentials on the same connection.</summary>
+    public HttpClient Http => _http;
+
+    public TrackApiClient()
+    {
+        _http = new HttpClient { BaseAddress = new Uri(BaseUrl), Timeout = TimeSpan.FromSeconds(30) };
+        // A token persisted from a previous run keeps the scanner usable without re-typing.
+        Auth.Apply(_http);
+    }
 
     public async Task<bool> HealthAsync()
     {

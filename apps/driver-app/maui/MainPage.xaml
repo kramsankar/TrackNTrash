@@ -17,6 +17,21 @@
                 <Label x:Name="lblBanner" TextColor="White" FontSize="17" FontAttributes="Bold" HorizontalOptions="Center" HorizontalTextAlignment="Center" />
             </Border>
 
+            <!-- 0. Sign in -->
+            <Border x:Name="cardAuth" BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="0 · SIGN IN" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Label x:Name="lblAuth" Text="The tracking API only accepts scans from a signed-in user." FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtUser" Placeholder="Username" Text="admin" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtPass" Placeholder="Password" IsPassword="True" TextColor="#e7ecf6" Completed="OnSignIn" />
+                    <Button x:Name="btnSignIn" Text="Sign in" Clicked="OnSignIn" BackgroundColor="#2f66e6" TextColor="White" />
+                    <Button x:Name="btnSignOut" Text="Sign out" Clicked="OnSignOut" IsVisible="False" BackgroundColor="#2b3a5c" TextColor="White" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Everything below needs a token, so it stays disabled until sign-in succeeds. -->
+            <VerticalStackLayout x:Name="workArea" Spacing="16" IsEnabled="False" Opacity="0.45">
+
             <!-- 1. Create trip (dispatcher) -->
             <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
                 <VerticalStackLayout Spacing="10">
@@ -52,6 +67,8 @@
                     <Label x:Name="lblLog" Text="Ready." FontSize="12" TextColor="#9aa6ba" />
                 </VerticalStackLayout>
             </Border>
+
+            </VerticalStackLayout>
 
         </VerticalStackLayout>
     </ScrollView>
