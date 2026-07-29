@@ -5,6 +5,8 @@ namespace TrackNTrash.Tracking.Core.Trips;
 public interface ITripStore
 {
     Task<Trip> AddAsync(Trip trip, CancellationToken ct = default);
+    /// <summary>Next identity for a trip number. Must be unique across process restarts.</summary>
+    Task<long> NextSequenceAsync(CancellationToken ct = default);
     Task<Trip?> GetByNumberAsync(string tripNumber, CancellationToken ct = default);
     Task<Trip?> GetByManifestQrAsync(string manifestQr, CancellationToken ct = default);
     /// <summary>Find the trip a tray is planned on (for wrong-trip detection).</summary>
@@ -23,7 +25,8 @@ public sealed class InMemoryTripStore : ITripStore
         return Task.FromResult(trip);
     }
 
-    public long NextId() => Interlocked.Increment(ref _id);
+    public Task<long> NextSequenceAsync(CancellationToken ct = default)
+        => Task.FromResult(Interlocked.Increment(ref _id));
 
     public Task<Trip?> GetByNumberAsync(string tripNumber, CancellationToken ct = default)
         => Task.FromResult(_byNumber.TryGetValue(tripNumber, out var t) ? t : null);

@@ -20,7 +20,8 @@ public class TripServiceTests
         var notifier = new LoggingNotificationPublisher(NullLogger<LoggingNotificationPublisher>.Instance);
         var ingest = new IngestionService(events, states, exc, manifests, notifier,
             new ShipmentStateMachine(), new ExceptionSeverityMatrix(),
-            Array.Empty<IIngestExceptionRule>(), NullLogger<IngestionService>.Instance);
+            Array.Empty<IIngestExceptionRule>(), new NoOpTrayProjection(),
+NullLogger<IngestionService>.Instance);
         var trips = new TripService(new InMemoryTripStore(), ingest, new ExceptionSeverityMatrix(),
             NullLogger<TripService>.Instance);
         return (trips, ingest, states);

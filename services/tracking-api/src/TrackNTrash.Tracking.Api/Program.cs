@@ -45,6 +45,7 @@ if (useSql)
     builder.Services.AddSingleton(new SqlCameraStore(sqlCs!));
     builder.Services.AddSingleton(new SqlMasterStore(sqlCs!));
     builder.Services.AddSingleton(new SqlRbacStore(sqlCs!));
+    builder.Services.AddSingleton<ITrayProjection>(new SqlTrayProjection(sqlCs!));
 }
 else
 {
@@ -52,6 +53,7 @@ else
     builder.Services.AddSingleton<IShipmentStateStore, InMemoryShipmentStateStore>();
     builder.Services.AddSingleton<IExceptionStore, InMemoryExceptionStore>();
     builder.Services.AddSingleton<IManifestStore, InMemoryManifestStore>();
+    builder.Services.AddSingleton<ITrayProjection, NoOpTrayProjection>();
 }
 
 // ---- Authentication: local JWT (username/password) and/or Entra ID ----
@@ -133,7 +135,9 @@ builder.Services.AddSingleton(_ => SweepOptions.Default);
 builder.Services.AddSingleton<SweepService>();
 
 // ---- Trips (Module 7) ----
-builder.Services.AddSingleton<ITripStore, InMemoryTripStore>();
+// Trips were in-memory only, so an App Service recycle silently discarded them.
+if (useSql) builder.Services.AddSingleton<ITripStore>(new SqlTripStore(sqlCs!));
+else builder.Services.AddSingleton<ITripStore, InMemoryTripStore>();
 builder.Services.AddSingleton<TripService>();
 
 // ---- Receiving (Module 8) ----
@@ -226,7 +230,7 @@ app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
 
 // ---------- Generic master data (product, store, zone, rack, vehicle, device, role) ----------
 app.MapGet("/masters", () => Results.Ok(SqlMasterStore.Masters.Values.Select(m => new { m.Key, m.Label })))
-    .WithTags("Masters").WithName("ListMasterTypes");
+    .WithTags("Masters").WithName("ListMasterTypes").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/masters/{key}", async (string key, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -234,7 +238,7 @@ app.MapGet("/masters/{key}", async (string key, IServiceProvider sp, Cancellatio
     if (store is null) return Results.Ok(Array.Empty<object>());
     try { return Results.Ok(await store.ListAsync(key, ct)); }
     catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
-}).WithTags("Masters").WithName("ListMaster");
+}).WithTags("Masters").WithName("ListMaster").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/masters/{key}", async (string key, System.Text.Json.JsonElement body, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -246,7 +250,7 @@ app.MapPost("/masters/{key}", async (string key, System.Text.Json.JsonElement bo
     { return Results.BadRequest(new { error = "That code already exists — pick a different one." }); }
     catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 547)
     { return Results.BadRequest(new { error = "A referenced record does not exist, or a value breaks a data rule." }); }
-}).WithTags("Masters").WithName("CreateMaster");
+}).WithTags("Masters").WithName("CreateMaster").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPut("/masters/{key}/{id:int}", async (string key, int id, System.Text.Json.JsonElement body, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -256,7 +260,7 @@ app.MapPut("/masters/{key}/{id:int}", async (string key, int id, System.Text.Jso
     catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
     catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 2601 or 2627)
     { return Results.BadRequest(new { error = "That code already exists — pick a different one." }); }
-}).WithTags("Masters").WithName("UpdateMaster");
+}).WithTags("Masters").WithName("UpdateMaster").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapDelete("/masters/{key}/{id:int}", async (string key, int id, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -266,20 +270,20 @@ app.MapDelete("/masters/{key}/{id:int}", async (string key, int id, IServiceProv
     catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
     catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 547)
     { return Results.BadRequest(new { error = "This record is still referenced elsewhere and cannot be removed." }); }
-}).WithTags("Masters").WithName("DeleteMaster");
+}).WithTags("Masters").WithName("DeleteMaster").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- RBAC: forms, role mappings, users ----------
 app.MapGet("/rbac/forms", async (IServiceProvider sp, CancellationToken ct) =>
 {
     var rbac = sp.GetService<SqlRbacStore>();
     return rbac is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await rbac.ListFormsAsync(ct));
-}).WithTags("RBAC").WithName("ListForms");
+}).WithTags("RBAC").WithName("ListForms").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/rbac/mappings", async (int? roleId, IServiceProvider sp, CancellationToken ct) =>
 {
     var rbac = sp.GetService<SqlRbacStore>();
     return rbac is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await rbac.ListMappingsAsync(roleId, ct));
-}).WithTags("RBAC").WithName("ListMappings");
+}).WithTags("RBAC").WithName("ListMappings").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/rbac/mappings", async (MappingDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -289,13 +293,13 @@ app.MapPost("/rbac/mappings", async (MappingDto dto, IServiceProvider sp, Cancel
         return Results.BadRequest(new { error = "roleId and formId are required." });
     await rbac.SaveMappingAsync(dto.RoleId, dto.FormId, dto.CanView, dto.CanCreate, dto.CanEdit, dto.CanDelete, ct);
     return Results.Ok(new { dto.RoleId, dto.FormId, saved = true });
-}).WithTags("RBAC").WithName("SaveMapping");
+}).WithTags("RBAC").WithName("SaveMapping").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/rbac/users", async (IServiceProvider sp, CancellationToken ct) =>
 {
     var rbac = sp.GetService<SqlRbacStore>();
     return rbac is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await rbac.ListUsersAsync(ct));
-}).WithTags("RBAC").WithName("ListUsers");
+}).WithTags("RBAC").WithName("ListUsers").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/rbac/users", async (SaveUserDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -314,19 +318,24 @@ app.MapPost("/rbac/users", async (SaveUserDto dto, IServiceProvider sp, Cancella
     }
     catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 2601 or 2627)
     { return Results.BadRequest(new { error = "That username is already taken." }); }
-}).WithTags("RBAC").WithName("SaveUser");
+}).WithTags("RBAC").WithName("SaveUser").RequireAuthorizationWhenConfigured(authOptions);
 
 // The console asks for its own permissions to build the menu.
 app.MapGet("/rbac/permissions", async (HttpContext http, IServiceProvider sp, CancellationToken ct) =>
 {
     var rbac = sp.GetService<SqlRbacStore>();
     if (rbac is null) return Results.Ok(Array.Empty<object>());
+    // Always derive the subject from the token. Accepting a ?username= would let any
+    // caller read another user's permission set.
     var username = http.User?.Identity?.Name
-        ?? http.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-        ?? http.Request.Query["username"].ToString();
+        ?? http.User?.FindFirst("unique_name")?.Value
+        ?? http.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    // Only when no sign-in method is configured (local dev) may the caller name itself.
+    if (string.IsNullOrWhiteSpace(username) && !authOptions.LocalEnabled && !authOptions.EntraEnabled)
+        username = http.Request.Query["username"].ToString();
     if (string.IsNullOrWhiteSpace(username)) return Results.Ok(Array.Empty<object>());
     return Results.Ok(await rbac.PermissionsForUserAsync(username, ct));
-}).WithTags("RBAC").WithName("MyPermissions");
+}).WithTags("RBAC").WithName("MyPermissions").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Item-level tracking (units inside a carton) ----------
 app.MapGet("/cartons", async (IServiceProvider sp, CancellationToken ct) =>

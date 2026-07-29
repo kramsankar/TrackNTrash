@@ -82,7 +82,7 @@ export function Assets({ user }: { user: CurrentUser }) {
   return (
     <div className="view">
       <div className="view-head">
-        <div><h2>Asset Master — Trays</h2><p className="muted">Reusable tray registry with QR generation. Persists to Azure SQL.</p></div>
+        <div><h2>Asset Master — Trays</h2><p className="muted">Reusable trays and their QR labels.</p></div>
         <button onClick={refresh}>↻ Refresh</button>
       </div>
 

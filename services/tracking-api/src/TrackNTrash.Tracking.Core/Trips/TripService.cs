@@ -25,8 +25,9 @@ public sealed class TripService
 
     public async Task<Trip> CreateAsync(CreateTripRequest req, CancellationToken ct = default)
     {
-        // id sequence in the in-memory impl; a SQL store would use an IDENTITY / sequence instead.
-        long id = _trips is InMemoryTripStore ims ? ims.NextId() : DateTimeOffset.UtcNow.Ticks;
+        // The number must be unique across restarts, so it comes from whatever the store
+        // uses for identity — a table max for SQL, a counter for the in-memory impl.
+        long id = await _trips.NextSequenceAsync(ct);
         string tripNumber = $"TRIP-{id:D6}";
         var trip = new Trip
         {
@@ -41,10 +42,10 @@ public sealed class TripService
             Stops = req.Stops.OrderBy(s => s.Sequence).ToList(),
             Loads = req.PlannedTrays.Select(pt => new TripLoadState { Planned = pt }).ToList()
         };
-        await _trips.AddAsync(trip, ct);
+        var saved = await _trips.AddAsync(trip, ct);
         _log.LogInformation("Created {Trip} with {Trays} trays, {Stops} stops",
-            trip.TripNumber, trip.Loads.Count, trip.Stops.Count);
-        return trip;
+            saved.TripNumber, saved.Loads.Count, saved.Stops.Count);
+        return saved;
     }
 
     public Task<Trip?> GetAsync(string tripNumberOrManifest, CancellationToken ct = default)

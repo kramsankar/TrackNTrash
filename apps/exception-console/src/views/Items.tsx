@@ -50,7 +50,7 @@ export function Items({ user }: { user: CurrentUser }) {
         <div>
           <h2>Item-Level Counting</h2>
           <p className="muted">
-            Units inside each carton — scanned individually when barcoded, counted by camera when not.
+            Units inside each carton — scanned when barcoded, counted by camera when not.
             Reconciled at pick, dock and store receiving.
           </p>
         </div>

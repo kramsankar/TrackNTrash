@@ -20,8 +20,8 @@ public class IngestionTests
         var notifier = new LoggingNotificationPublisher(NullLogger<LoggingNotificationPublisher>.Instance);
         var svc = new IngestionService(events, states, exc, manifests, notifier,
             new ShipmentStateMachine(), new ExceptionSeverityMatrix(),
-            rules ?? new IIngestExceptionRule[] { new CountMismatchAtDockRule() },
-            NullLogger<IngestionService>.Instance);
+            rules ?? new IIngestExceptionRule[] { new CountMismatchAtDockRule() }, new NoOpTrayProjection(),
+NullLogger<IngestionService>.Instance);
         return (svc, exc, states, manifests);
     }
 

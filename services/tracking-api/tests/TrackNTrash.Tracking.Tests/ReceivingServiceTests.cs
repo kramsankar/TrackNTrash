@@ -20,7 +20,8 @@ public class ReceivingServiceTests
         var notifier = new LoggingNotificationPublisher(NullLogger<LoggingNotificationPublisher>.Instance);
         var ingest = new IngestionService(events, states, exc, manifests, notifier,
             new ShipmentStateMachine(), new ExceptionSeverityMatrix(),
-            Array.Empty<IIngestExceptionRule>(), NullLogger<IngestionService>.Instance);
+            Array.Empty<IIngestExceptionRule>(), new NoOpTrayProjection(),
+NullLogger<IngestionService>.Instance);
         var asns = new InMemoryAsnStore();
         var svc = new ReceivingService(asns, ingest, new ExceptionSeverityMatrix(), NullLogger<ReceivingService>.Instance);
         return (svc, asns, states);

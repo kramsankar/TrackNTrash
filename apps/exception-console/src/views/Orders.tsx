@@ -38,7 +38,7 @@ export function Orders({ user }: { user: CurrentUser }) {
       <div className="view-head">
         <div>
           <h2>Orders</h2>
-          <p className="muted">All order lines and their live state, straight from Azure SQL. Persists across refreshes.</p>
+          <p className="muted">Every order line and the checkpoint it has reached.</p>
         </div>
         <button onClick={refresh}>↻ Refresh</button>
       </div>

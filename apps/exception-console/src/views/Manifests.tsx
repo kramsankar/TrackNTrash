@@ -23,7 +23,7 @@ export function Manifests({ user }: { user: CurrentUser }) {
   return (
     <div className="view">
       <h2>Tray Manifests (ASN)</h2>
-      <p className="muted">Expected tray contents synced to the dock camera + used for receiving reconciliation. Persists to Azure SQL.</p>
+      <p className="muted">Expected tray contents — used by the dock camera and at store receiving.</p>
 
       <div className="card">
         <h3>Upsert manifest</h3>

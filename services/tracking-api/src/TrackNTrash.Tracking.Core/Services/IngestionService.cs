@@ -25,6 +25,7 @@ public sealed class IngestionService
     private readonly ShipmentStateMachine _machine;
     private readonly ExceptionSeverityMatrix _severity;
     private readonly IReadOnlyList<IIngestExceptionRule> _rules;
+    private readonly ITrayProjection _trays;
     private readonly ILogger<IngestionService> _log;
 
     public IngestionService(
@@ -36,6 +37,7 @@ public sealed class IngestionService
         ShipmentStateMachine machine,
         ExceptionSeverityMatrix severity,
         IEnumerable<IIngestExceptionRule> rules,
+        ITrayProjection trays,
         ILogger<IngestionService> log)
     {
         _events = events;
@@ -46,7 +48,77 @@ public sealed class IngestionService
         _machine = machine;
         _severity = severity;
         _rules = rules.ToList();
+        _trays = trays;
         _log = log;
+    }
+
+    /// <summary>Maps an event onto the tray custody / contents projections.</summary>
+    private async Task ProjectTrayAsync(ScanEventInput input, long scanEventId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(input.TrayQr)) return;
+        try
+        {
+            switch (input.EventType)
+            {
+                case "TrayBuildComplete":
+                    // The tray is built in the warehouse and holds the cartons just scanned.
+                    await _trays.RecordCustodyAsync(input.TrayQr!, "Warehouse", null, null, scanEventId, ct);
+                    var cartons = ParseCartonList(input.MetaJson);
+                    if (cartons.Count > 0)
+                        await _trays.BindCartonsAsync(input.TrayQr!, cartons, scanEventId, ct);
+                    break;
+
+                case "TripLoadScan":
+                    await _trays.RecordCustodyAsync(input.TrayQr!, "Vehicle", input.TripId?.ToString(),
+                        input.TripId, scanEventId, ct);
+                    break;
+
+                case "ReceivingComplete":
+                case "TrayCustodyTransfer":
+                    await _trays.RecordCustodyAsync(input.TrayQr!, "Store",
+                        ExtractRef(input.MetaJson) ?? input.StoreId?.ToString(), input.TripId, scanEventId, ct);
+                    break;
+
+                case "EmptyTrayReturn":
+                    await _trays.RecordCustodyAsync(input.TrayQr!, "Vehicle",
+                        ExtractRef(input.MetaJson), input.TripId, scanEventId, ct);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // A projection failure must not lose the event — the log is the source of truth.
+            _log.LogError(ex, "Tray projection failed for {Tray} on {Event}", input.TrayQr, input.EventType);
+        }
+    }
+
+    /// <summary>Pulls a "ref" value out of an event's meta JSON without a JSON dependency.</summary>
+    private static string? ExtractRef(string? metaJson) => ExtractString(metaJson, "\"ref\"");
+
+    private static string? ExtractString(string? json, string marker)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        var i = json.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (i < 0) return null;
+        var colon = json.IndexOf(':', i);
+        if (colon < 0) return null;
+        var start = json.IndexOf('"', colon + 1);
+        if (start < 0) return null;
+        var end = json.IndexOf('"', start + 1);
+        return end < 0 ? null : json.Substring(start + 1, end - start - 1);
+    }
+
+    /// <summary>The pick app sends its carton list as a JSON array in meta.</summary>
+    private static List<string> ParseCartonList(string? metaJson)
+    {
+        var list = new List<string>();
+        if (string.IsNullOrWhiteSpace(metaJson)) return list;
+        foreach (var part in metaJson.Split('"'))
+            if (part.Length > 2 && !part.Contains(':') && !part.Contains('{') &&
+                !part.Contains('[') && !part.Contains(',') &&
+                part is not ("serial" or "orderLine" or "receiver" or "signature" or "ref" or "to" or "frameRef"))
+                list.Add(part);
+        return list;
     }
 
     public async Task<IngestResult> IngestAsync(ScanEventInput input, CancellationToken ct = default)
@@ -100,6 +172,10 @@ public sealed class IngestionService
                 raised.Add(ex);
             }
         }
+
+        // 3b. Tray projections. Custody and contents are implied by events that are already
+        // being recorded, so deriving them here keeps them consistent with the log.
+        await ProjectTrayAsync(input, stored.ScanEventId, ct);
 
         // 4. Ingest-time rules.
         var ruleCtx = new IngestRuleContext(stored, orderLineId, stateBefore, _severity, _manifests);

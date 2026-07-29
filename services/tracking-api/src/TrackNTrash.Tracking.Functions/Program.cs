@@ -26,6 +26,7 @@ var host = new HostBuilder()
             services.AddSingleton<IShipmentStateStore>(new SqlShipmentStateStore(sqlCs));
             services.AddSingleton<IExceptionStore>(new SqlExceptionStore(sqlCs));
             services.AddSingleton<IManifestStore>(new SqlManifestStore(sqlCs));
+            services.AddSingleton<ITrayProjection>(new SqlTrayProjection(sqlCs));
         }
         else
         {
@@ -33,6 +34,7 @@ var host = new HostBuilder()
             services.AddSingleton<IShipmentStateStore, InMemoryShipmentStateStore>();
             services.AddSingleton<IExceptionStore, InMemoryExceptionStore>();
             services.AddSingleton<IManifestStore, InMemoryManifestStore>();
+            services.AddSingleton<ITrayProjection, NoOpTrayProjection>();
         }
 
         var sbCs = ctx.Configuration["ServiceBus:ConnectionString"];
