@@ -136,6 +136,23 @@ def test_auth(api, admin_user, admin_pw):
     s, _ = call(api, "GET", "/health")
     record("auth", "Health check stays open", s == 200, f"HTTP {s}")
 
+    # Enumerating by hand missed the Items and Cameras groups entirely, because those
+    # endpoints close with "}).WithTags(...)" rather than a line starting with .WithTags.
+    # This sweeps every readable endpoint instead of trusting a list.
+    OPEN_BY_DESIGN = {"/health", "/auth/config", "/auth/login", "/auth/users"}
+    leaked = []
+    for path in ["/orders", "/assets", "/assets/summary", "/cartons", "/items/counts",
+                 "/cameras", "/sitemaps", "/console/exceptions", "/exceptions/open",
+                 "/masters", "/masters/product", "/rbac/forms", "/rbac/users",
+                 "/rbac/mappings", "/manifests?since=2000-01-01T00:00:00Z"]:
+        if path in OPEN_BY_DESIGN:
+            continue
+        s, _ = call(api, "GET", path)
+        if s != 401:
+            leaked.append(f"{path}={s}")
+    record("auth", "No GET endpoint is readable anonymously",
+           not leaked, ", ".join(leaked) if leaked else "all 401")
+
 
 def test_orders(api, pw, skip_db):
     print("\n── Orders (create → walk checkpoints → persist) ──")

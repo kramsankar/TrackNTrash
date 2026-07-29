@@ -353,7 +353,7 @@ app.MapGet("/cartons", async (IServiceProvider sp, CancellationToken ct) =>
 {
     var store = sp.GetService<SqlItemStore>();
     return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListCartonsAsync(500, ct));
-}).WithTags("Items").WithName("ListCartons");
+}).WithTags("Items").WithName("ListCartons").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/cartons", async (CartonSetupDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -375,13 +375,13 @@ app.MapPost("/cartons", async (CartonSetupDto dto, IServiceProvider sp, Cancella
     {
         return Results.BadRequest(new { error = "Carton rejected by a data rule. Serials allow letters, digits and - . / _ (max 20); the order line must exist.", detail = ex.Message });
     }
-}).WithTags("Items").WithName("CreateCarton");
+}).WithTags("Items").WithName("CreateCarton").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/items/counts", async (IServiceProvider sp, CancellationToken ct) =>
 {
     var store = sp.GetService<SqlItemStore>();
     return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListCountsAsync(500, ct));
-}).WithTags("Items").WithName("ListItemCounts");
+}).WithTags("Items").WithName("ListItemCounts").RequireAuthorizationWhenConfigured(authOptions);
 
 // The reconciliation entry point: barcode scans and/or a camera's visual count.
 app.MapPost("/items/count", async (ItemCountDto dto, IServiceProvider sp, IngestionService ingestion,
@@ -425,14 +425,14 @@ app.MapPost("/items/count", async (ItemCountDto dto, IServiceProvider sp, Ingest
     }
 
     return Results.Ok(result);
-}).WithTags("Items").WithName("RecordItemCount");
+}).WithTags("Items").WithName("RecordItemCount").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Cameras & site mapping ----------
 app.MapGet("/cameras", async (IServiceProvider sp, CancellationToken ct) =>
 {
     var store = sp.GetService<SqlCameraStore>();
     return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListAsync(ct));
-}).WithTags("Cameras").WithName("ListCameras");
+}).WithTags("Cameras").WithName("ListCameras").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/cameras", async (CameraDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -443,7 +443,7 @@ app.MapPost("/cameras", async (CameraDto dto, IServiceProvider sp, CancellationT
     var id = await store.UpsertAsync(dto.CameraCode, string.IsNullOrWhiteSpace(dto.Name) ? dto.CameraCode : dto.Name,
         dto.CameraKind, dto.SiteCode, dto.Zone, dto.Station, dto.Checkpoint, dto.RtspUrl, dto.Purpose, dto.Status, ct);
     return Results.Ok(new { cameraId = id, dto.CameraCode });
-}).WithTags("Cameras").WithName("UpsertCamera");
+}).WithTags("Cameras").WithName("UpsertCamera").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/cameras/{cameraId:int}/placement", async (int cameraId, PlacementDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -451,7 +451,7 @@ app.MapPost("/cameras/{cameraId:int}/placement", async (int cameraId, PlacementD
     if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
     await store.PlaceAsync(cameraId, dto.SiteMapId, dto.X, dto.Y, dto.HeadingDeg, ct);
     return Results.Ok(new { cameraId, dto.SiteMapId, dto.X, dto.Y });
-}).WithTags("Cameras").WithName("PlaceCamera");
+}).WithTags("Cameras").WithName("PlaceCamera").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/cameras/{cameraCode}/heartbeat", async (string cameraCode, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -459,13 +459,13 @@ app.MapPost("/cameras/{cameraCode}/heartbeat", async (string cameraCode, IServic
     if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
     await store.HeartbeatAsync(cameraCode, ct);
     return Results.Ok(new { cameraCode, seen = DateTimeOffset.UtcNow });
-}).WithTags("Cameras").WithName("CameraHeartbeat");
+}).WithTags("Cameras").WithName("CameraHeartbeat").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/sitemaps", async (IServiceProvider sp, CancellationToken ct) =>
 {
     var store = sp.GetService<SqlCameraStore>();
     return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListMapsAsync(ct));
-}).WithTags("Cameras").WithName("ListSiteMaps");
+}).WithTags("Cameras").WithName("ListSiteMaps").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/sitemaps", async (SiteMapDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -475,7 +475,7 @@ app.MapPost("/sitemaps", async (SiteMapDto dto, IServiceProvider sp, Cancellatio
     var id = await store.UpsertMapAsync(dto.SiteCode, string.IsNullOrWhiteSpace(dto.Name) ? dto.SiteCode : dto.Name,
         dto.ImageUri, dto.Width, dto.Height, ct);
     return Results.Ok(new { siteMapId = id, dto.SiteCode });
-}).WithTags("Cameras").WithName("UpsertSiteMap");
+}).WithTags("Cameras").WithName("UpsertSiteMap").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Asset master (reusable trays) ----------
 app.MapGet("/assets", async (IServiceProvider sp, CancellationToken ct) =>
