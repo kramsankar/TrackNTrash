@@ -53,6 +53,17 @@ public sealed class TrackApiClient
         return await resp.Content.ReadFromJsonAsync<LoadResp>(Json);
     }
 
+    /// <summary>
+    /// Hands an empty tray back to the vehicle on the return leg. Without this the tray
+    /// stays recorded at the store and the fleet looks smaller than it is.
+    /// </summary>
+    public async Task<bool> ReturnEmptyTrayAsync(string trayQr, string vehicleReg, string deviceId)
+    {
+        var resp = await _http.PostAsJsonAsync("/receiving/return-tray",
+            new { trayQr, vehicleReg, deviceId }, Json);
+        return resp.IsSuccessStatusCode;
+    }
+
     public async Task<bool> DepartAsync(string tripNumber, string deviceId)
     {
         var resp = await _http.PostAsJsonAsync("/events/telemetry", new { tripNumber, @event = "depart", deviceId }, Json);

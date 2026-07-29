@@ -64,6 +64,41 @@ public sealed class TrackApiClient
     public async Task<LineState?> GetLineStateAsync(long orderLineId)
         => await _http.GetFromJsonAsync<LineState>($"/shipment-lines/{orderLineId}/state", Json);
 
+    /// <summary>
+    /// Registers a carton so its individual units can be counted. Returns the carton id
+    /// that <see cref="CountItemsAsync"/> needs — item counts hang off the carton, not the QR.
+    /// </summary>
+    public async Task<long> CreateCartonAsync(long orderLineId, string gtin, string serial,
+        int expectedItemCount, string itemIdentification)
+    {
+        var body = new { orderLineId, gtin, serial, expectedItemCount, itemIdentification };
+        var resp = await _http.PostAsJsonAsync("/cartons", body, Json);
+        resp.EnsureSuccessStatusCode();
+        var doc = await resp.Content.ReadFromJsonAsync<CartonResp>(Json);
+        return doc?.CartonId ?? 0;
+    }
+
+    /// <summary>
+    /// Records how many units are actually in a carton. Barcoded units come through
+    /// scannedBarcodes; unlabelled ones are counted by camera and come through visionCount.
+    /// The API decides the verdict (OK / SHORT / OVER) and raises the exception itself.
+    /// </summary>
+    public async Task<ItemCountResp?> CountItemsAsync(long cartonId, IEnumerable<string> scannedBarcodes,
+        int? visionCount, string deviceId, string checkpoint = "PickTrayBuild")
+    {
+        var body = new
+        {
+            cartonId, checkpoint, deviceId,
+            scannedBarcodes = scannedBarcodes.ToList(),
+            visionCount
+        };
+        var resp = await _http.PostAsJsonAsync("/items/count", body, Json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ItemCountResp>(Json);
+    }
+
+    private sealed record CartonResp([property: JsonPropertyName("cartonId")] long CartonId);
+
     private sealed record OrderResp([property: JsonPropertyName("orderLineIds")] long[] OrderLineIds);
 }
 
@@ -81,4 +116,15 @@ public sealed record LineState
     public long OrderLineId { get; init; }
     public string CurrentState { get; init; } = "";
     public long? LastEventId { get; init; }
+}
+
+/// <summary>Mirrors the API's CountResult. Verdict is OK, SHORT or OVER.</summary>
+public sealed record ItemCountResp
+{
+    public long ItemCountId { get; init; }
+    public int Expected { get; init; }
+    public int Scanned { get; init; }
+    public int? Vision { get; init; }
+    public string Verdict { get; init; } = "";
+    public string Detail { get; init; } = "";
 }

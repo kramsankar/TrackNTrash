@@ -90,6 +90,90 @@ public partial class MainPage : ContentPage
         catch (Exception ex) { Banner("Complete failed: " + ex.Message, true); Log("❌ " + ex.Message); btnComplete.IsEnabled = true; }
     }
 
+    // ---- Item-level counting -------------------------------------------------------
+    // A carton has to exist in the database before its units can be counted, because the
+    // count hangs off the carton id rather than the QR payload.
+
+    private long? _cartonId;
+    private readonly List<string> _units = new();
+
+    private async void OnRegisterCarton(object? sender, EventArgs e)
+    {
+        if (_orderLineId is null) { Banner("Start an order first", true); return; }
+        var serial = txtItemSerial.Text?.Trim() ?? "";
+        if (serial.Length == 0) { Banner("Enter a carton serial", true); return; }
+        if (!int.TryParse(txtItemExpected.Text, out var expectedUnits) || expectedUnits < 1)
+        { Banner("Enter how many units the carton should hold", true); return; }
+
+        btnRegisterCarton.IsEnabled = false;
+        try
+        {
+            // Mixed: some units carry a barcode, some are counted by camera. That is the
+            // normal case on a retail line, so it is the default rather than a special mode.
+            _cartonId = await _api.CreateCartonAsync(_orderLineId.Value, txtGtin.Text.Trim(),
+                serial, expectedUnits, "Mixed");
+            _units.Clear();
+            lblUnits.Text = "0 units scanned";
+            lblCarton.Text = $"Carton {serial} registered (id {_cartonId}) · expects {expectedUnits} units";
+            btnSubmitCount.IsEnabled = true;
+            Banner($"Carton {serial} ready — scan its units", false);
+            Log($"📦 Carton {serial} registered (id {_cartonId})");
+        }
+        catch (Exception ex) { Banner("Register failed: " + ex.Message, true); Log("❌ " + ex.Message); }
+        finally { btnRegisterCarton.IsEnabled = true; }
+    }
+
+    private void OnUnitScanned(object? sender, EventArgs e)
+    {
+        var code = txtUnit.Text?.Trim() ?? "";
+        txtUnit.Text = "";
+        txtUnit.Focus();
+        ProcessUnit(code);
+    }
+
+    private async void OnScanUnitCamera(object? sender, EventArgs e)
+    {
+        var page = new ScanPage();
+        await Navigation.PushModalAsync(page);
+        var code = await page.Result;
+        if (!string.IsNullOrWhiteSpace(code)) ProcessUnit(code.Trim());
+    }
+
+    private void ProcessUnit(string code)
+    {
+        if (code.Length == 0) return;
+        if (_cartonId is null) { Banner("Register a carton first", true); return; }
+        // A repeated unit barcode is a double-scan, not a second unit.
+        if (_units.Contains(code, StringComparer.OrdinalIgnoreCase))
+        { Banner($"Unit already scanned: {code}", true); return; }
+
+        _units.Add(code);
+        lblUnits.Text = $"{_units.Count} units scanned";
+        Banner($"✅ unit {code}", false);
+    }
+
+    private async void OnSubmitCount(object? sender, EventArgs e)
+    {
+        if (_cartonId is null) return;
+        int? vision = int.TryParse(txtVisionCount.Text, out var v) && v >= 0 ? v : null;
+        if (_units.Count == 0 && vision is null)
+        { Banner("Scan some units or enter a visual count", true); return; }
+
+        btnSubmitCount.IsEnabled = false;
+        try
+        {
+            var r = await _api.CountItemsAsync(_cartonId.Value, _units, vision, DeviceId);
+            // The API's verdicts are MATCH / SHORT / OVER / UNVERIFIED — only MATCH is clean.
+            var ok = r?.Verdict == "MATCH";
+            lblCountVerdict.Text = r is null ? "" : $"{r.Verdict} — {r.Detail}";
+            lblCountVerdict.TextColor = Color.FromArgb(ok ? "#43b477" : "#f2a33c");
+            Banner(ok ? $"Item count matches ({r!.Expected} units)" : $"⚠ {r?.Verdict}: {r?.Detail}", !ok);
+            Log($"🔢 Item count on carton {_cartonId}: {r?.Verdict} ({r?.Scanned}/{r?.Expected}, vision {r?.Vision?.ToString() ?? "—"})");
+        }
+        catch (Exception ex) { Banner("Count failed: " + ex.Message, true); Log("❌ " + ex.Message); }
+        finally { btnSubmitCount.IsEnabled = true; }
+    }
+
     private void Banner(string text, bool isError)
     {
         banner.IsVisible = true;

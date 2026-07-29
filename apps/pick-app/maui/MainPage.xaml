@@ -74,6 +74,28 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- 3b. Item-level count -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="3b · COUNT UNITS IN A CARTON" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Label Text="Register the carton, then scan each unit inside it. Unlabelled units are counted visually instead — enter the number a camera (or you) saw."
+                           FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtItemSerial" Placeholder="Carton serial (e.g. C-000123)" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtItemExpected" Placeholder="Units expected in the carton" Text="12" Keyboard="Numeric" TextColor="#e7ecf6" />
+                    <Button x:Name="btnRegisterCarton" Text="Register carton" Clicked="OnRegisterCarton" BackgroundColor="#2b3a5c" TextColor="White" />
+                    <Label x:Name="lblCarton" Text="" FontSize="13" TextColor="#9aa6ba" />
+
+                    <Entry x:Name="txtUnit" Placeholder="Scan unit barcode then Enter…" Completed="OnUnitScanned" TextColor="#e7ecf6" />
+                    <Button Text="📷 Scan unit with camera" Clicked="OnScanUnitCamera" BackgroundColor="#2b3a5c" TextColor="White" />
+                    <Label x:Name="lblUnits" Text="0 units scanned" FontSize="15" FontAttributes="Bold" TextColor="#43b477" />
+
+                    <Entry x:Name="txtVisionCount" Placeholder="Units counted visually (optional)" Keyboard="Numeric" TextColor="#e7ecf6" />
+                    <Button x:Name="btnSubmitCount" Text="Submit item count" Clicked="OnSubmitCount" IsEnabled="False"
+                            BackgroundColor="#2f66e6" TextColor="White" />
+                    <Label x:Name="lblCountVerdict" Text="" FontSize="13" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
             <!-- 4. Complete -->
             <Button x:Name="btnComplete" Text="Complete tray build" Clicked="OnComplete" IsEnabled="False"
                     BackgroundColor="#43b477" TextColor="White" HeightRequest="48" />

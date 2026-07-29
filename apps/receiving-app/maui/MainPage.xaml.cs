@@ -101,6 +101,33 @@ public partial class MainPage : ContentPage
 
     private void Log(string line) => lblLog.Text = line + "\n" + lblLog.Text;
 
+    // ---- Damaged cartons ------------------------------------------------------------
+
+    private async void OnFlagDamaged(object? sender, EventArgs e)
+    {
+        if (_sessionId is null) { Banner("Start a receiving session first", true); return; }
+        var payload = txtDamaged.Text?.Trim() ?? "";
+        var photo = txtPhoto.Text?.Trim() ?? "";
+        if (payload.Length == 0) { Banner("Enter the carton payload", true); return; }
+        // The API rejects this without a photo; catching it here saves a round trip and
+        // explains why rather than showing a bare 400.
+        if (photo.Length == 0 || photo == "blob://damage/")
+        { Banner("A damage photo reference is required", true); return; }
+
+        btnDamaged.IsEnabled = false;
+        try
+        {
+            var r = await _api.FlagDamagedAsync(_sessionId, payload, photo);
+            lblDamaged.Text = $"{payload} flagged damaged ({r?.Outcome})";
+            lblDamaged.TextColor = Color.FromArgb("#f2a33c");
+            Banner($"⚠ {payload} recorded as damaged", false);
+            Log($"📸 Damaged: {payload} → {photo}");
+            txtDamaged.Text = "";
+        }
+        catch (Exception ex) { Banner("Failed: " + ex.Message, true); Log("❌ " + ex.Message); }
+        finally { btnDamaged.IsEnabled = true; }
+    }
+
     // ---- Sign in -------------------------------------------------------------------
     // The tracking API guards every operational endpoint, so nothing below works until
     // a token is in hand. A token from a previous run is restored on construction.

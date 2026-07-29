@@ -90,6 +90,45 @@ public partial class MainPage : ContentPage
 
     private void Log(string line) => lblLog.Text = line + "\n" + lblLog.Text;
 
+    // ---- Empty tray return ----------------------------------------------------------
+
+    private int _returned;
+
+    private async void OnReturnTray(object? sender, EventArgs e)
+    {
+        var tray = txtReturnTray.Text?.Trim() ?? "";
+        if (tray.Length == 0) { Banner("Scan an empty tray", true); return; }
+        var vehicle = txtVehicle.Text?.Trim() ?? "";
+        if (vehicle.Length == 0) { Banner("Enter the vehicle reg", true); return; }
+
+        btnReturnTray.IsEnabled = false;
+        try
+        {
+            var ok = await _api.ReturnEmptyTrayAsync(tray, vehicle, DeviceId);
+            if (!ok) { Banner("Return failed", true); return; }
+            _returned++;
+            lblReturned.Text = $"{_returned} trays returned";
+            Banner($"↩ {tray} back on {vehicle}", false);
+            Log($"↩ Empty tray {tray} returned to {vehicle}");
+            txtReturnTray.Text = "";
+            txtReturnTray.Focus();
+        }
+        catch (Exception ex) { Banner("Failed: " + ex.Message, true); Log("❌ " + ex.Message); }
+        finally { btnReturnTray.IsEnabled = true; }
+    }
+
+    private async void OnScanReturnCamera(object? sender, EventArgs e)
+    {
+        var page = new ScanPage();
+        await Navigation.PushModalAsync(page);
+        var code = await page.Result;
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            txtReturnTray.Text = code.Trim();
+            OnReturnTray(sender, e);
+        }
+    }
+
     // ---- Sign in -------------------------------------------------------------------
     // The tracking API guards every operational endpoint, so nothing below works until
     // a token is in hand. A token from a previous run is restored on construction.

@@ -56,6 +56,19 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- 2b. Damaged carton -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="2b · DAMAGED CARTON" FontSize="12" TextColor="#f2a33c" FontAttributes="Bold" />
+                    <Label Text="A carton that arrived broken needs a photo — a damage claim without evidence cannot be settled with the carrier."
+                           FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtDamaged" Placeholder="Carton payload" TextColor="#e7ecf6" />
+                    <Entry x:Name="txtPhoto" Placeholder="Damage photo reference (blob URI)" Text="blob://damage/" TextColor="#e7ecf6" />
+                    <Button x:Name="btnDamaged" Text="Flag as damaged" Clicked="OnFlagDamaged" BackgroundColor="#b4762a" TextColor="White" />
+                    <Label x:Name="lblDamaged" Text="" FontSize="13" TextColor="#9aa6ba" />
+                </VerticalStackLayout>
+            </Border>
+
             <!-- 3. Complete (POD) -->
             <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
                 <VerticalStackLayout Spacing="10">

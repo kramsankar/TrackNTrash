@@ -53,6 +53,18 @@ public sealed class TrackApiClient
         return await resp.Content.ReadFromJsonAsync<ScanResp>(Json);
     }
 
+    /// <summary>
+    /// Flags a carton that arrived broken. The API refuses this without a photo, because a
+    /// damage claim with no evidence cannot be settled with the carrier.
+    /// </summary>
+    public async Task<ScanResp?> FlagDamagedAsync(string sessionId, string payload, string photoBlobUri)
+    {
+        var resp = await _http.PostAsJsonAsync($"/receiving/{sessionId}/damaged",
+            new { payload, photoBlobUri }, Json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScanResp>(Json);
+    }
+
     public async Task<SummaryResp?> CompleteAsync(string sessionId, string deviceId, string receiverName)
     {
         var resp = await _http.PostAsJsonAsync($"/receiving/{sessionId}/complete",

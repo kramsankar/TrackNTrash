@@ -68,6 +68,19 @@
                 </VerticalStackLayout>
             </Border>
 
+            <!-- 3. Empty tray return -->
+            <Border BackgroundColor="#161d2b" Stroke="#28313f" StrokeShape="RoundRectangle 12" Padding="16">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="3 · EMPTY TRAY RETURN" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Label Text="On the way back, scan each empty tray onto the vehicle. Skipping this leaves the tray recorded at the store and the fleet looks smaller than it is."
+                           FontSize="12" TextColor="#9aa6ba" />
+                    <Entry x:Name="txtReturnTray" Placeholder="Scan empty tray QR then Enter…" Completed="OnReturnTray" TextColor="#e7ecf6" />
+                    <Button Text="📷 Scan empty tray with camera" Clicked="OnScanReturnCamera" BackgroundColor="#2b3a5c" TextColor="White" />
+                    <Button x:Name="btnReturnTray" Text="Return tray to vehicle" Clicked="OnReturnTray" BackgroundColor="#43b477" TextColor="White" />
+                    <Label x:Name="lblReturned" Text="0 trays returned" FontSize="15" FontAttributes="Bold" TextColor="#43b477" />
+                </VerticalStackLayout>
+            </Border>
+
             </VerticalStackLayout>
 
         </VerticalStackLayout>
