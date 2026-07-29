@@ -149,8 +149,13 @@ builder.Services.AddSingleton<TripService>();
 if (useSql) builder.Services.AddSingleton<IAsnStore>(new SqlAsnStore(sqlCs!));
 else builder.Services.AddSingleton<IAsnStore, InMemoryAsnStore>();
 builder.Services.AddSingleton<ReceivingService>();
-// Receiving sessions are per-tray/store; held server-side keyed by a session id for the demo API.
-builder.Services.AddSingleton<ReceivingSessionCache>();
+// Receiving sessions are per-tray/store; held server-side keyed by a session id.
+// In memory they did not survive a recycle, so a colleague mid-tray had to start again.
+if (useSql)
+    builder.Services.AddSingleton<IReceivingSessionStore>(sp =>
+        new SqlReceivingSessionStore(sqlCs!, sp.GetRequiredService<IAsnStore>()));
+else
+    builder.Services.AddSingleton<IReceivingSessionStore, InMemoryReceivingSessionStore>();
 
 // CORS for the exception console. Origins are configurable (Cors:Origins, comma-separated)
 // so the deployed console URL can be allowed alongside the Vite dev server.
@@ -224,7 +229,7 @@ app.MapPost("/orders", async (OrderDto dto, IServiceProvider sp, CancellationTok
     var lineIds = await store.CreateAsync(dto.ToInput(), ct);
     return Results.Ok(new { dto.OrderNumber, dto.StoreCode, orderLineIds = lineIds });
 })
-.WithTags("Orders").WithName("CreateOrder");
+.WithTags("Orders").WithName("CreateOrder").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
 {
@@ -232,7 +237,7 @@ app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
     if (store is null) return Results.Ok(Array.Empty<object>());   // in-memory mode has no order master
     return Results.Ok(await store.ListAsync(500, ct));
 })
-.WithTags("Orders").WithName("ListOrders");
+.WithTags("Orders").WithName("ListOrders").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Generic master data (product, store, zone, rack, vehicle, device, role) ----------
 app.MapGet("/masters", () => Results.Ok(SqlMasterStore.Masters.Values.Select(m => new { m.Key, m.Label })))
@@ -479,7 +484,7 @@ app.MapGet("/assets", async (IServiceProvider sp, CancellationToken ct) =>
     if (store is null) return Results.Ok(Array.Empty<object>());
     return Results.Ok(await store.ListAsync(1000, ct));
 })
-.WithTags("Assets").WithName("ListAssets");
+.WithTags("Assets").WithName("ListAssets").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/assets/summary", async (IServiceProvider sp, CancellationToken ct) =>
 {
@@ -487,7 +492,7 @@ app.MapGet("/assets/summary", async (IServiceProvider sp, CancellationToken ct) 
     if (store is null) return Results.Ok(new { total = 0 });
     return Results.Ok(await store.SummaryAsync(ct));
 })
-.WithTags("Assets").WithName("AssetSummary");
+.WithTags("Assets").WithName("AssetSummary").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/assets/register", async (RegisterAssetsDto dto, IServiceProvider sp, CancellationToken ct) =>
 {
@@ -498,7 +503,7 @@ app.MapPost("/assets/register", async (RegisterAssetsDto dto, IServiceProvider s
     var qrs = await store.RegisterTraysAsync(dto.SiteCode, dto.Count, ct);
     return Results.Ok(new { registered = qrs.Count, trayQrs = qrs });
 })
-.WithTags("Assets").WithName("RegisterAssets");
+.WithTags("Assets").WithName("RegisterAssets").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Ingestion ----------
 app.MapPost("/events/scan", async (ScanEventDto dto, IngestionService svc, CancellationToken ct) =>
@@ -509,7 +514,7 @@ app.MapPost("/events/scan", async (ScanEventDto dto, IngestionService svc, Cance
     return Results.Ok(result);
 })
 .WithTags("Events").WithName("IngestScan")
-.Produces<IngestResult>(200).ProducesProblem(400);
+.Produces<IngestResult>(200).ProducesProblem(400).RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/events/scan/batch", async (ScanEventDto[] dtos, IngestionService svc, CancellationToken ct) =>
 {
@@ -522,7 +527,7 @@ app.MapPost("/events/scan/batch", async (ScanEventDto[] dtos, IngestionService s
     }
     return Results.Ok(new { accepted = results.Count, results });
 })
-.WithTags("Events").WithName("IngestScanBatch");
+.WithTags("Events").WithName("IngestScanBatch").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Manifest sync (edge module pulls expected tray manifests) ----------
 app.MapGet("/manifests", async (DateTimeOffset? since, IManifestStore store, CancellationToken ct) =>
@@ -531,7 +536,7 @@ app.MapGet("/manifests", async (DateTimeOffset? since, IManifestStore store, Can
     var manifests = await store.GetChangedSinceAsync(cutoff, ct);
     return Results.Ok(new { since = cutoff, count = manifests.Count, manifests });
 })
-.WithTags("Manifests").WithName("GetManifestsDelta");
+.WithTags("Manifests").WithName("GetManifestsDelta").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPut("/manifests", async (ManifestDto dto, IManifestStore store, CancellationToken ct) =>
 {
@@ -540,7 +545,7 @@ app.MapPut("/manifests", async (ManifestDto dto, IManifestStore store, Cancellat
     await store.UpsertAsync(dto.ToManifest(), ct);
     return Results.Ok(new { dto.TrayQr, dto.ExpectedCartonCount });
 })
-.WithTags("Manifests").WithName("UpsertManifest");
+.WithTags("Manifests").WithName("UpsertManifest").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Read models ----------
 app.MapGet("/shipment-lines/{orderLineId:long}/state", async (long orderLineId, IShipmentStateStore store, CancellationToken ct) =>
@@ -548,11 +553,11 @@ app.MapGet("/shipment-lines/{orderLineId:long}/state", async (long orderLineId, 
     var rec = await store.GetOrCreateAsync(orderLineId, ct);
     return Results.Ok(rec);
 })
-.WithTags("State").WithName("GetLineState");
+.WithTags("State").WithName("GetLineState").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/exceptions/open", async (IExceptionStore store, CancellationToken ct) =>
     Results.Ok(await store.GetOpenAsync(ct)))
-.WithTags("Exceptions").WithName("GetOpenExceptions");
+.WithTags("Exceptions").WithName("GetOpenExceptions").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Manual sweep trigger (the Functions timer calls SweepService directly) ----------
 app.MapPost("/admin/sweep", async (SweepService sweep, CancellationToken ct) =>
@@ -568,14 +573,14 @@ app.MapPost("/trips", async (CreateTripDto dto, TripService svc, CancellationTok
     return Results.Ok(new { trip.TripNumber, trip.ManifestQr, trip.Status,
         stops = trip.Stops.Count, trays = trip.Loads.Count });
 })
-.WithTags("Trips").WithName("CreateTrip");
+.WithTags("Trips").WithName("CreateTrip").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/trips/{tripNumber}", async (string tripNumber, TripService svc, CancellationToken ct) =>
 {
     var trip = await svc.GetAsync(tripNumber, ct);
     return trip is null ? Results.NotFound() : Results.Ok(trip);
 })
-.WithTags("Trips").WithName("GetTrip");
+.WithTags("Trips").WithName("GetTrip").RequireAuthorizationWhenConfigured(authOptions);
 
 // Driver scans a tray at the loading dock (wrong-trip detection happens here).
 app.MapPost("/trips/{tripNumber}/load", async (string tripNumber, LoadScanDto dto, TripService svc, CancellationToken ct) =>
@@ -587,7 +592,7 @@ app.MapPost("/trips/{tripNumber}/load", async (string tripNumber, LoadScanDto dt
     // business outcome, not an HTTP error.
     return Results.Ok(result);
 })
-.WithTags("Trips").WithName("LoadTrayScan");
+.WithTags("Trips").WithName("LoadTrayScan").RequireAuthorizationWhenConfigured(authOptions);
 
 // Telematics / geofence webhook.
 app.MapPost("/events/telemetry", async (TelemetryDto dto, TripService svc, CancellationToken ct) =>
@@ -603,7 +608,7 @@ app.MapPost("/events/telemetry", async (TelemetryDto dto, TripService svc, Cance
     // "arrive" and other events are recorded but need no line transition here (handled at receiving).
     return Results.Ok(new { dto.TripNumber, recorded = dto.Event });
 })
-.WithTags("Trips").WithName("Telemetry");
+.WithTags("Trips").WithName("Telemetry").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Receiving (Module 8) ----------
 app.MapPut("/asn", async (AsnDto dto, IAsnStore store, CancellationToken ct) =>
@@ -613,50 +618,55 @@ app.MapPut("/asn", async (AsnDto dto, IAsnStore store, CancellationToken ct) =>
     await store.UpsertAsync(dto.ToAsn(), ct);
     return Results.Ok(new { dto.TrayQr, dto.StoreCode, expected = dto.ExpectedCartons.Count });
 })
-.WithTags("Receiving").WithName("UpsertAsn");
+.WithTags("Receiving").WithName("UpsertAsn").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapPost("/receiving/start", async (StartReceivingDto dto, ReceivingService svc, ReceivingSessionCache cache, CancellationToken ct) =>
+app.MapPost("/receiving/start", async (StartReceivingDto dto, ReceivingService svc, IReceivingSessionStore sessions, CancellationToken ct) =>
 {
     var session = await svc.StartAsync(dto.TrayQr, dto.StoreCode, ct);
     if (session is null) return Results.NotFound(new { error = "No ASN for this tray/store." });
-    var id = cache.Add(session);
+    var id = await sessions.AddAsync(session, ct);
     return Results.Ok(new { sessionId = id, session.Asn.TrayQr, session.Asn.StoreCode,
         expected = session.ExpectedCount,
         expectedCartons = session.Asn.ExpectedCartons });
 })
-.WithTags("Receiving").WithName("StartReceiving");
+.WithTags("Receiving").WithName("StartReceiving").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapPost("/receiving/{sessionId}/scan", async (string sessionId, ScanCartonDto dto, ReceivingService svc, ReceivingSessionCache cache, CancellationToken ct) =>
+app.MapPost("/receiving/{sessionId}/scan", async (string sessionId, ScanCartonDto dto, ReceivingService svc, IReceivingSessionStore sessions, CancellationToken ct) =>
 {
-    var session = cache.Get(sessionId);
+    var session = await sessions.GetAsync(sessionId, ct);
     if (session is null) return Results.NotFound(new { error = "Unknown session." });
     var result = await svc.ScanAsync(session, dto.Payload, ct);
+    // The scan mutates the session in place, so it has to be written back before the
+    // next request rehydrates it from SQL.
+    await sessions.SaveAsync(sessionId, session, ct);
     return Results.Ok(result);
 })
-.WithTags("Receiving").WithName("ReceivingScan");
+.WithTags("Receiving").WithName("ReceivingScan").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapPost("/receiving/{sessionId}/damaged", (string sessionId, DamagedDto dto, ReceivingService svc, ReceivingSessionCache cache) =>
+app.MapPost("/receiving/{sessionId}/damaged", async (string sessionId, DamagedDto dto, ReceivingService svc, IReceivingSessionStore sessions, CancellationToken ct) =>
 {
-    var session = cache.Get(sessionId);
+    var session = await sessions.GetAsync(sessionId, ct);
     if (session is null) return Results.NotFound(new { error = "Unknown session." });
     if (string.IsNullOrWhiteSpace(dto.PhotoBlobUri))
         return Results.BadRequest(new { error = "A damage photo is required." });
-    return Results.Ok(svc.FlagDamaged(session, dto.Payload, dto.PhotoBlobUri));
+    var result = svc.FlagDamaged(session, dto.Payload, dto.PhotoBlobUri);
+    await sessions.SaveAsync(sessionId, session, ct);
+    return Results.Ok(result);
 })
-.WithTags("Receiving").WithName("ReceivingDamaged");
+.WithTags("Receiving").WithName("ReceivingDamaged").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapPost("/receiving/{sessionId}/complete", async (string sessionId, CompleteReceivingDto dto, ReceivingService svc, ReceivingSessionCache cache, CancellationToken ct) =>
+app.MapPost("/receiving/{sessionId}/complete", async (string sessionId, CompleteReceivingDto dto, ReceivingService svc, IReceivingSessionStore sessions, CancellationToken ct) =>
 {
-    var session = cache.Get(sessionId);
+    var session = await sessions.GetAsync(sessionId, ct);
     if (session is null) return Results.NotFound(new { error = "Unknown session." });
     if (string.IsNullOrWhiteSpace(dto.ReceiverName))
         return Results.BadRequest(new { error = "receiverName is required for POD." });
     var summary = await svc.CompleteAsync(session, dto.DeviceId,
         new ProofOfDelivery { ReceiverName = dto.ReceiverName, SignatureBlobUri = dto.SignatureBlobUri, DeliveryPhotoBlobUri = dto.DeliveryPhotoBlobUri }, ct);
-    cache.Remove(sessionId);
+    await sessions.RemoveAsync(sessionId, ct);
     return Results.Ok(summary);
 })
-.WithTags("Receiving").WithName("CompleteReceiving");
+.WithTags("Receiving").WithName("CompleteReceiving").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/receiving/return-tray", async (ReturnTrayDto dto, ReceivingService svc, CancellationToken ct) =>
 {
@@ -665,7 +675,7 @@ app.MapPost("/receiving/return-tray", async (ReturnTrayDto dto, ReceivingService
     await svc.ReturnEmptyTrayAsync(dto.TrayQr, dto.VehicleReg, dto.DeviceId, ct);
     return Results.Ok(new { dto.TrayQr, returnedTo = dto.VehicleReg });
 })
-.WithTags("Receiving").WithName("ReturnTray");
+.WithTags("Receiving").WithName("ReturnTray").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Exception Console (Module 12) ----------
 app.MapHub<ExceptionsHub>("/hubs/exceptions").RequireAuthorizationWhenConfigured(authOptions);

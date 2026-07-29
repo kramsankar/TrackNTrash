@@ -6,21 +6,44 @@ namespace TrackNTrash.Tracking.Api;
 /// <summary>
 /// Holds active receiving sessions server-side for the thin-client API path. In the MAUI app
 /// the session lives on-device (offline); on completion it posts the summary + scan events.
+///
+/// SQL-backed when a connection string is configured, so a recycle mid-round does not make
+/// the colleague at the door restart the tray from the first carton.
 /// </summary>
-public sealed class ReceivingSessionCache
+public interface IReceivingSessionStore
+{
+    Task<string> AddAsync(ReceivingSession session, CancellationToken ct = default);
+    Task<ReceivingSession?> GetAsync(string id, CancellationToken ct = default);
+    /// <summary>Persists what has been scanned so far; a no-op for the in-memory store.</summary>
+    Task SaveAsync(string id, ReceivingSession session, CancellationToken ct = default);
+    Task RemoveAsync(string id, CancellationToken ct = default);
+}
+
+/// <summary>In-memory sessions, used for local runs and tests with no database.</summary>
+public sealed class InMemoryReceivingSessionStore : IReceivingSessionStore
 {
     private readonly ConcurrentDictionary<string, ReceivingSession> _sessions = new();
     private long _seq;
 
-    public string Add(ReceivingSession session)
+    public Task<string> AddAsync(ReceivingSession session, CancellationToken ct = default)
     {
         var id = $"recv-{Interlocked.Increment(ref _seq):D6}";
         _sessions[id] = session;
-        return id;
+        return Task.FromResult(id);
     }
 
-    public ReceivingSession? Get(string id) => _sessions.TryGetValue(id, out var s) ? s : null;
-    public void Remove(string id) => _sessions.TryRemove(id, out _);
+    public Task<ReceivingSession?> GetAsync(string id, CancellationToken ct = default)
+        => Task.FromResult(_sessions.TryGetValue(id, out var s) ? s : null);
+
+    // The stored object is the same instance the endpoint mutated, so there is nothing to write.
+    public Task SaveAsync(string id, ReceivingSession session, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task RemoveAsync(string id, CancellationToken ct = default)
+    {
+        _sessions.TryRemove(id, out _);
+        return Task.CompletedTask;
+    }
 }
 
 public sealed record AsnDto

@@ -117,6 +117,25 @@ def test_auth(api, admin_user, admin_pw):
     s, _ = call(api, "GET", "/console/exceptions", token=_token)
     record("auth", "Protected endpoint accepts a valid token", s == 200, f"HTTP {s}")
 
+    # The operational endpoints were reachable anonymously long after auth was switched
+    # on: anyone could read the order book or post scan events.
+    for method, path, body in [
+        ("GET", "/orders", None),
+        ("GET", "/assets", None),
+        ("GET", "/exceptions/open", None),
+        ("GET", "/manifests?since=2000-01-01T00:00:00Z", None),
+        ("POST", "/events/scan", {"clientEventId": "anon-" + uuid.uuid4().hex[:8],
+                                  "deviceId": "anon", "eventType": "TrayBuildComplete", "orderLineId": 1}),
+        ("POST", "/trips", {"vehicleReg": "ANON"}),
+        ("PUT", "/asn", {"trayQr": "ANON", "storeCode": "ANON", "expectedCartons": []}),
+    ]:
+        s, _ = call(api, method, path, body)
+        record("auth", f"Anonymous {method} {path.split('?')[0]} is refused", s == 401, f"HTTP {s}")
+
+    # /health is the probe the platform calls; it must stay open.
+    s, _ = call(api, "GET", "/health")
+    record("auth", "Health check stays open", s == 200, f"HTTP {s}")
+
 
 def test_orders(api, pw, skip_db):
     print("\n── Orders (create → walk checkpoints → persist) ──")
@@ -352,8 +371,21 @@ def test_receiving(api, pw, skip_db):
         return
     sess = b["sessionId"]
 
+    if not skip_db:
+        # Sessions used to be a dictionary: a recycle mid-tray made the colleague at the
+        # door start again from the first carton, and the id counter rewound with it.
+        record("receiving", "Session row reached SQL",
+               count(pw, "ops.ReceivingSession", f"SessionId='{sess}'") == 1)
+
     s, b = call(api, "POST", f"/receiving/{sess}/scan", {"payload": "P1"}, token=_token)
     record("receiving", "Expected carton → Received", s == 200 and b.get("outcome") == "Received", str(b.get("outcome")))
+
+    if not skip_db:
+        # The scan has to be written back, or the next request rehydrates an empty session.
+        record("receiving", "Scan PERSISTED to the session",
+               count(pw, "ops.ReceivingSessionScan",
+                     f"Payload='P1' AND ReceivingSessionId="
+                     f"(SELECT ReceivingSessionId FROM ops.ReceivingSession WHERE SessionId='{sess}')") == 1)
 
     s, b = call(api, "POST", f"/receiving/{sess}/scan", {"payload": "STRANGER"}, token=_token)
     record("receiving", "Unexpected carton → Over", s == 200 and b.get("outcome") == "Over", str(b.get("outcome")))
