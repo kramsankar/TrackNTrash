@@ -72,6 +72,11 @@ export const api = {
   upsertManifest: (body: ManifestReq, token?: string) => put<any>(`/manifests`, body, token),
   manifests: (sinceIso: string, token?: string) => get<{ count: number; manifests: ManifestRow[] }>(`/manifests?since=${encodeURIComponent(sinceIso)}`, token),
 
+  // ---- assets ----
+  listAssets: (token?: string) => get<AssetRow[]>(`/assets`, token),
+  assetSummary: (token?: string) => get<AssetSummary>(`/assets/summary`, token),
+  registerAssets: (siteCode: string, count: number, token?: string) => post<{ registered: number; trayQrs: string[] }>(`/assets/register`, { siteCode, count }, token),
+
   // ---- admin ----
   runSweep: (token?: string) => post<any>(`/admin/sweep`, {}, token),
   health: () => get<{ status: string; service: string }>(`/health`),
@@ -90,3 +95,5 @@ export interface TripReq { vehicleReg: string; driverName?: string; routeCode?: 
 export interface TripResp { tripNumber: string; manifestQr: string; status: string; stops: number; trays: number; }
 export interface ManifestReq { trayQr: string; tripId?: number; expectedCartonCount: number; expectedCartonPayloads: string[]; }
 export interface ManifestRow { trayQr: string; tripId?: number; expectedCartonCount: number; expectedCartonPayloads: string[]; updatedUtc: string; }
+export interface AssetRow { trayId: number; trayQr: string; siteCode: string; trayStatus: string; currentCustodianType: string; currentCustodianRef?: string; lastSeenUtc?: string; createdUtc: string; }
+export interface AssetSummary { total: number; available: number; inUse: number; inTransit: number; atStore: number; lost: number; }

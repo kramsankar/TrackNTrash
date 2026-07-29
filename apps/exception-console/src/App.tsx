@@ -8,15 +8,17 @@ import { Orders } from "./views/Orders";
 import { Trips } from "./views/Trips";
 import { Manifests } from "./views/Manifests";
 import { LineLookup } from "./views/LineLookup";
+import { Assets } from "./views/Assets";
 import { ExceptionsView } from "./views/ExceptionsView";
 
-type View = "dashboard" | "orders" | "trips" | "manifests" | "lookup" | "exceptions";
+type View = "dashboard" | "orders" | "trips" | "manifests" | "assets" | "lookup" | "exceptions";
 
 const MENU: { id: View; label: string; icon: string; group: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "▦", group: "Overview" },
   { id: "orders", label: "Orders", icon: "🧾", group: "Operations" },
   { id: "trips", label: "Trips & Loading", icon: "🚚", group: "Operations" },
   { id: "manifests", label: "Manifests (ASN)", icon: "📦", group: "Operations" },
+  { id: "assets", label: "Asset Master", icon: "🗄️", group: "Operations" },
   { id: "lookup", label: "Line Lookup", icon: "🔎", group: "Operations" },
   { id: "exceptions", label: "Exceptions", icon: "⚠️", group: "Monitoring" },
 ];
@@ -72,6 +74,7 @@ export default function App() {
         {view === "orders" && <Orders user={user} />}
         {view === "trips" && <Trips user={user} />}
         {view === "manifests" && <Manifests user={user} />}
+        {view === "assets" && <Assets user={user} />}
         {view === "lookup" && <LineLookup user={user} />}
         {view === "exceptions" && <ExceptionsView items={items} user={user} refresh={refresh} />}
       </main>

@@ -68,6 +68,13 @@ public sealed record OrderLineDto
     public string? ErpLineReference { get; init; }
 }
 
+/// <summary>Register N reusable trays for a site (POST /assets/register).</summary>
+public sealed record RegisterAssetsDto
+{
+    public string SiteCode { get; init; } = "";
+    public int Count { get; init; } = 1;
+}
+
 /// <summary>Manifest upsert (PUT /manifests) — normally driven by trip planning / D365.</summary>
 public sealed record ManifestDto
 {

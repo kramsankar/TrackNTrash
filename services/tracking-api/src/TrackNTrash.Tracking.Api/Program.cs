@@ -35,6 +35,7 @@ if (useSql)
     builder.Services.AddSingleton<IExceptionStore>(new SqlExceptionStore(sqlCs!));
     builder.Services.AddSingleton<IManifestStore>(new SqlManifestStore(sqlCs!));
     builder.Services.AddSingleton(new SqlOrderStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlAssetStore(sqlCs!));
 }
 else
 {
@@ -116,6 +117,34 @@ app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
     return Results.Ok(await store.ListAsync(500, ct));
 })
 .WithTags("Orders").WithName("ListOrders");
+
+// ---------- Asset master (reusable trays) ----------
+app.MapGet("/assets", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlAssetStore>();
+    if (store is null) return Results.Ok(Array.Empty<object>());
+    return Results.Ok(await store.ListAsync(1000, ct));
+})
+.WithTags("Assets").WithName("ListAssets");
+
+app.MapGet("/assets/summary", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlAssetStore>();
+    if (store is null) return Results.Ok(new { total = 0 });
+    return Results.Ok(await store.SummaryAsync(ct));
+})
+.WithTags("Assets").WithName("AssetSummary");
+
+app.MapPost("/assets/register", async (RegisterAssetsDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlAssetStore>();
+    if (store is null) return Results.Problem("Asset registry requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.SiteCode) || dto.Count < 1)
+        return Results.BadRequest(new { error = "siteCode and count (>=1) required." });
+    var qrs = await store.RegisterTraysAsync(dto.SiteCode, dto.Count, ct);
+    return Results.Ok(new { registered = qrs.Count, trayQrs = qrs });
+})
+.WithTags("Assets").WithName("RegisterAssets");
 
 // ---------- Ingestion ----------
 app.MapPost("/events/scan", async (ScanEventDto dto, IngestionService svc, CancellationToken ct) =>
