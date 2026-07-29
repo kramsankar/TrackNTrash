@@ -4,6 +4,7 @@ import { api, type AssetRow, type AssetSummary } from "../api";
 import type { CurrentUser } from "../auth";
 import { EnterpriseGrid, text, badge, category, date } from "../vendor/enterprise-grid";
 import "../vendor/enterprise-grid/enterprise-grid.css";
+import "../grid-dark.css";
 
 const STATUS_COLORS: Record<string, string> = {
   Available: "green", InUse: "blue", InTransit: "violet", AtStore: "amber",

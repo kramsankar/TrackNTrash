@@ -3,6 +3,7 @@ import { api, type CartonRow, type ItemCountRow, type CameraRow } from "../api";
 import type { CurrentUser } from "../auth";
 import { EnterpriseGrid, text, badge, category } from "../vendor/enterprise-grid";
 import "../vendor/enterprise-grid/enterprise-grid.css";
+import "../grid-dark.css";
 
 const VERDICT_COLORS: Record<string, string> = {
   MATCH: "green", SHORT: "red", OVER: "amber", UNVERIFIED: "slate",

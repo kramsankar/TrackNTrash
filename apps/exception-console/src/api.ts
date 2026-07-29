@@ -40,6 +40,9 @@ async function put<T>(path: string, body: unknown, token?: string): Promise<T> {
 async function get<T>(path: string, token?: string): Promise<T> {
   return json<T>(await fetch(`${BASE}${path}`, { headers: auth(token) }));
 }
+async function del<T>(path: string, token?: string): Promise<T> {
+  return json<T>(await fetch(`${BASE}${path}`, { method: "DELETE", headers: auth(token) }));
+}
 
 export const api = {
   // ---- exceptions / console ----
@@ -90,6 +93,20 @@ export const api = {
   listSiteMaps: (token?: string) => get<SiteMapRow[]>(`/sitemaps`, token),
   upsertSiteMap: (body: SiteMapReq, token?: string) => post<{ siteMapId: number }>(`/sitemaps`, body, token),
 
+  // ---- generic masters ----
+  listMaster: (key: string, token?: string) => get<MasterRecord[]>(`/masters/${key}`, token),
+  createMaster: (key: string, body: MasterRecord, token?: string) => post<{ id: number }>(`/masters/${key}`, body, token),
+  updateMaster: (key: string, id: number, body: MasterRecord, token?: string) => put<any>(`/masters/${key}/${id}`, body, token),
+  deleteMaster: (key: string, id: number, token?: string) => del<any>(`/masters/${key}/${id}`, token),
+
+  // ---- RBAC ----
+  listForms: (token?: string) => get<FormRow[]>(`/rbac/forms`, token),
+  listMappings: (roleId?: number, token?: string) => get<MappingRow[]>(`/rbac/mappings${roleId ? `?roleId=${roleId}` : ""}`, token),
+  saveMapping: (body: MappingRow, token?: string) => post<any>(`/rbac/mappings`, body, token),
+  listUsers: (token?: string) => get<UserRow[]>(`/rbac/users`, token),
+  saveUser: (body: SaveUserReq, token?: string) => post<{ userId: number }>(`/rbac/users`, body, token),
+  myPermissions: (username: string, token?: string) => get<MappingRow[]>(`/rbac/permissions?username=${encodeURIComponent(username)}`, token),
+
   // ---- admin ----
   runSweep: (token?: string) => post<any>(`/admin/sweep`, {}, token),
   health: () => get<{ status: string; service: string }>(`/health`),
@@ -124,3 +141,10 @@ export interface CameraReq { cameraCode: string; name: string; cameraKind: strin
 export interface PlacementReq { siteMapId: number; x: number; y: number; headingDeg?: number; }
 export interface SiteMapRow { siteMapId: number; siteCode: string; name: string; imageUri?: string; width: number; height: number; }
 export interface SiteMapReq { siteCode: string; name: string; imageUri?: string; width?: number; height?: number; }
+
+// ---- masters / RBAC ----
+export type MasterRecord = Record<string, any>;
+export interface FormRow { formId: string; formName: string; formGroup: string; sortOrder: number; }
+export interface MappingRow { roleId: number; roleName?: string; formId: string; canView: boolean; canCreate: boolean; canEdit: boolean; canDelete: boolean; }
+export interface UserRow { userId: number; username: string; displayName: string; email?: string; roleId?: number; roleName?: string; siteCode?: string; isActive: boolean; lastLoginUtc?: string; }
+export interface SaveUserReq { userId?: number; username: string; displayName: string; email?: string; roleId?: number; siteCode?: string; password?: string; isActive: boolean; }

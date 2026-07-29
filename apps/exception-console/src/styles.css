@@ -194,6 +194,12 @@ td.detail { color: var(--muted); max-width: 340px; overflow: hidden; text-overfl
 .badge.sev-high { background: var(--high); } .badge.sev-medium { background: var(--med); } .badge.sev-low { background: var(--low); }
 .qr-card { display: flex; flex-direction: column; align-items: flex-start; }
 
+/* ============================ PERMISSION MATRIX ============================ */
+.perm-matrix input[type="checkbox"] { width: 17px; height: 17px; min-height: 0; accent-color: var(--accent); cursor: pointer; }
+.perm-matrix input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .55; }
+.perm-matrix tbody tr:hover { background: var(--panel2); }
+.perm-matrix tr.row-dirty td:first-child { box-shadow: inset 3px 0 0 var(--warn); font-weight: 600; }
+
 /* ============================ FLOOR PLAN ============================ */
 .inline-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .floorplan {

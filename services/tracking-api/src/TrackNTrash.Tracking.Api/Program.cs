@@ -43,6 +43,8 @@ if (useSql)
     builder.Services.AddSingleton(new SqlUserStore(sqlCs!));
     builder.Services.AddSingleton(new SqlItemStore(sqlCs!));
     builder.Services.AddSingleton(new SqlCameraStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlMasterStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlRbacStore(sqlCs!));
 }
 else
 {
@@ -221,6 +223,110 @@ app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
     return Results.Ok(await store.ListAsync(500, ct));
 })
 .WithTags("Orders").WithName("ListOrders");
+
+// ---------- Generic master data (product, store, zone, rack, vehicle, device, role) ----------
+app.MapGet("/masters", () => Results.Ok(SqlMasterStore.Masters.Values.Select(m => new { m.Key, m.Label })))
+    .WithTags("Masters").WithName("ListMasterTypes");
+
+app.MapGet("/masters/{key}", async (string key, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlMasterStore>();
+    if (store is null) return Results.Ok(Array.Empty<object>());
+    try { return Results.Ok(await store.ListAsync(key, ct)); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+}).WithTags("Masters").WithName("ListMaster");
+
+app.MapPost("/masters/{key}", async (string key, System.Text.Json.JsonElement body, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlMasterStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    try { return Results.Ok(new { id = await store.CreateAsync(key, body, ct) }); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 2601 or 2627)
+    { return Results.BadRequest(new { error = "That code already exists — pick a different one." }); }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 547)
+    { return Results.BadRequest(new { error = "A referenced record does not exist, or a value breaks a data rule." }); }
+}).WithTags("Masters").WithName("CreateMaster");
+
+app.MapPut("/masters/{key}/{id:int}", async (string key, int id, System.Text.Json.JsonElement body, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlMasterStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    try { return await store.UpdateAsync(key, id, body, ct) ? Results.Ok(new { id, updated = true }) : Results.NotFound(); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 2601 or 2627)
+    { return Results.BadRequest(new { error = "That code already exists — pick a different one." }); }
+}).WithTags("Masters").WithName("UpdateMaster");
+
+app.MapDelete("/masters/{key}/{id:int}", async (string key, int id, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlMasterStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    try { return await store.DeleteAsync(key, id, ct) ? Results.Ok(new { id, deleted = true }) : Results.NotFound(); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 547)
+    { return Results.BadRequest(new { error = "This record is still referenced elsewhere and cannot be removed." }); }
+}).WithTags("Masters").WithName("DeleteMaster");
+
+// ---------- RBAC: forms, role mappings, users ----------
+app.MapGet("/rbac/forms", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var rbac = sp.GetService<SqlRbacStore>();
+    return rbac is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await rbac.ListFormsAsync(ct));
+}).WithTags("RBAC").WithName("ListForms");
+
+app.MapGet("/rbac/mappings", async (int? roleId, IServiceProvider sp, CancellationToken ct) =>
+{
+    var rbac = sp.GetService<SqlRbacStore>();
+    return rbac is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await rbac.ListMappingsAsync(roleId, ct));
+}).WithTags("RBAC").WithName("ListMappings");
+
+app.MapPost("/rbac/mappings", async (MappingDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var rbac = sp.GetService<SqlRbacStore>();
+    if (rbac is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (dto.RoleId <= 0 || string.IsNullOrWhiteSpace(dto.FormId))
+        return Results.BadRequest(new { error = "roleId and formId are required." });
+    await rbac.SaveMappingAsync(dto.RoleId, dto.FormId, dto.CanView, dto.CanCreate, dto.CanEdit, dto.CanDelete, ct);
+    return Results.Ok(new { dto.RoleId, dto.FormId, saved = true });
+}).WithTags("RBAC").WithName("SaveMapping");
+
+app.MapGet("/rbac/users", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var rbac = sp.GetService<SqlRbacStore>();
+    return rbac is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await rbac.ListUsersAsync(ct));
+}).WithTags("RBAC").WithName("ListUsers");
+
+app.MapPost("/rbac/users", async (SaveUserDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var rbac = sp.GetService<SqlRbacStore>();
+    if (rbac is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.Username))
+        return Results.BadRequest(new { error = "username is required." });
+    if (dto.UserId is null && string.IsNullOrWhiteSpace(dto.Password))
+        return Results.BadRequest(new { error = "A password is required for a new user." });
+    try
+    {
+        var id = await rbac.SaveUserAsync(dto.UserId, dto.Username.Trim(),
+            string.IsNullOrWhiteSpace(dto.DisplayName) ? dto.Username : dto.DisplayName,
+            dto.Email, dto.RoleId, dto.SiteCode, dto.Password, dto.IsActive, ct);
+        return Results.Ok(new { userId = id, dto.Username });
+    }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 2601 or 2627)
+    { return Results.BadRequest(new { error = "That username is already taken." }); }
+}).WithTags("RBAC").WithName("SaveUser");
+
+// The console asks for its own permissions to build the menu.
+app.MapGet("/rbac/permissions", async (HttpContext http, IServiceProvider sp, CancellationToken ct) =>
+{
+    var rbac = sp.GetService<SqlRbacStore>();
+    if (rbac is null) return Results.Ok(Array.Empty<object>());
+    var username = http.User?.Identity?.Name
+        ?? http.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        ?? http.Request.Query["username"].ToString();
+    if (string.IsNullOrWhiteSpace(username)) return Results.Ok(Array.Empty<object>());
+    return Results.Ok(await rbac.PermissionsForUserAsync(username, ct));
+}).WithTags("RBAC").WithName("MyPermissions");
 
 // ---------- Item-level tracking (units inside a carton) ----------
 app.MapGet("/cartons", async (IServiceProvider sp, CancellationToken ct) =>

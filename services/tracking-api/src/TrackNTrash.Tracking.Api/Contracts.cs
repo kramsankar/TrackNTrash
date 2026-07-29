@@ -68,6 +68,32 @@ public sealed record OrderLineDto
     public string? ErpLineReference { get; init; }
 }
 
+// ---------- RBAC ----------
+
+/// <summary>Save one role × form permission row (POST /rbac/mappings).</summary>
+public sealed record MappingDto
+{
+    public int RoleId { get; init; }
+    public string FormId { get; init; } = "";
+    public bool CanView { get; init; }
+    public bool CanCreate { get; init; }
+    public bool CanEdit { get; init; }
+    public bool CanDelete { get; init; }
+}
+
+/// <summary>Create or update a user (POST /rbac/users). Blank password keeps the existing one.</summary>
+public sealed record SaveUserDto
+{
+    public int? UserId { get; init; }
+    public string Username { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public string? Email { get; init; }
+    public int? RoleId { get; init; }
+    public string? SiteCode { get; init; }
+    public string? Password { get; init; }
+    public bool IsActive { get; init; } = true;
+}
+
 // ---------- Item-level tracking ----------
 
 /// <summary>Create/define a carton and how its units are identified (POST /cartons).</summary>

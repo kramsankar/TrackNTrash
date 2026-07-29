@@ -1,0 +1,95 @@
+/* =====================================================================================
+   Dark-theme skin for @asquare/enterprise-grid.
+
+   The grid ships a light-theme stylesheet (slate text on white). Dropped into this
+   dark console it renders as very low-contrast grey-on-grey. Rather than fork the
+   package, this layer remaps the handful of Tailwind colour utilities the grid emits
+   to dark-appropriate values, scoped to .grid-wrap so nothing else is affected.
+
+   Loaded AFTER enterprise-grid.css so these win on equal specificity.
+   ===================================================================================== */
+
+.grid-wrap {
+  --eg-primary: #5b8cff;
+  --eg-accent: #7b5bff;
+
+  /* Local palette for the overrides below. */
+  --g-bg: #131a2b;
+  --g-bg-alt: #172033;
+  --g-head: #1b2436;
+  --g-line: #2b3550;
+  --g-text: #e8edf9;
+  --g-text-dim: #a9b6ce;
+  --g-text-faint: #8494b0;
+}
+
+/* ---- surfaces ---- */
+.grid-wrap .bg-white,
+.grid-wrap .bg-white\/70,
+.grid-wrap .bg-slate-50,
+.grid-wrap .bg-slate-50\/60 { background-color: var(--g-bg) !important; }
+
+.grid-wrap .bg-slate-100 { background-color: var(--g-bg-alt) !important; }
+.grid-wrap .bg-slate-200,
+.grid-wrap .bg-slate-300 { background-color: #2a3550 !important; }
+
+/* Sticky header / footer / toolbars read as a distinct band. */
+.grid-wrap thead .bg-white,
+.grid-wrap thead .bg-slate-50,
+.grid-wrap thead th { background-color: var(--g-head) !important; }
+
+/* ---- text ---- */
+.grid-wrap .text-slate-800,
+.grid-wrap .text-slate-700 { color: var(--g-text) !important; }
+.grid-wrap .text-slate-600,
+.grid-wrap .text-slate-500 { color: var(--g-text-dim) !important; }
+.grid-wrap .text-slate-400,
+.grid-wrap .text-slate-300 { color: var(--g-text-faint) !important; }
+
+/* Cells and headers default to readable text even where the grid sets no colour. */
+.grid-wrap table, .grid-wrap td, .grid-wrap th,
+.grid-wrap input, .grid-wrap select, .grid-wrap button { color: var(--g-text); }
+.grid-wrap th { font-weight: 700; letter-spacing: .02em; }
+
+/* ---- borders ---- */
+.grid-wrap .border-slate-100,
+.grid-wrap .border-slate-200 { border-color: var(--g-line) !important; }
+.grid-wrap .divide-slate-100 > * + *,
+.grid-wrap .divide-slate-200 > * + * { border-color: var(--g-line) !important; }
+
+/* ---- hover / selection ---- */
+.grid-wrap .hover\:bg-slate-50:hover,
+.grid-wrap .hover\:bg-slate-100:hover,
+.grid-wrap .hover\:bg-white\/60:hover { background-color: #22304f !important; }
+.grid-wrap .hover\:text-slate-700:hover,
+.grid-wrap .hover\:text-slate-600:hover { color: #fff !important; }
+
+/* ---- status tints: keep the hue, darken the ground so the text reads ---- */
+.grid-wrap .bg-emerald-50 { background-color: rgba(52,211,153,.15) !important; }
+.grid-wrap .bg-rose-50    { background-color: rgba(244,63,94,.15) !important; }
+.grid-wrap .bg-amber-50   { background-color: rgba(251,191,36,.15) !important; }
+.grid-wrap .bg-sky-50     { background-color: rgba(91,140,255,.15) !important; }
+.grid-wrap .text-emerald-700 { color: #6ee7b7 !important; }
+.grid-wrap .text-rose-700, .grid-wrap .text-rose-600 { color: #fda4af !important; }
+.grid-wrap .text-amber-800, .grid-wrap .text-amber-700 { color: #fcd34d !important; }
+.grid-wrap .text-sky-700 { color: #93c5fd !important; }
+.grid-wrap .border-amber-200 { border-color: rgba(251,191,36,.4) !important; }
+.grid-wrap .border-rose-400 { border-color: rgba(244,63,94,.6) !important; }
+
+/* ---- inputs inside the grid (filters, quick search, cell editors) ---- */
+.grid-wrap input, .grid-wrap select {
+  background-color: #0f1626 !important;
+  border-color: var(--g-line) !important;
+}
+.grid-wrap input::placeholder { color: var(--g-text-faint) !important; }
+
+/* ---- popovers: column menu, set filters, tool panel ---- */
+.eg-popover, .eg-menu, [data-eg-popover] {
+  background-color: var(--g-bg-alt, #172033) !important;
+  color: #e8edf9 !important;
+  border-color: #2b3550 !important;
+}
+.eg-popover .bg-white, .eg-menu .bg-white { background-color: #172033 !important; }
+.eg-popover .text-slate-700, .eg-menu .text-slate-700,
+.eg-popover .text-slate-600, .eg-menu .text-slate-600 { color: #e8edf9 !important; }
+.eg-popover .hover\:bg-slate-50:hover, .eg-menu .hover\:bg-slate-50:hover { background-color: #22304f !important; }
