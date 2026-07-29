@@ -3209,7 +3209,9 @@ function EnterpriseGridInner(props, apiRef) {
                   "flex items-center overflow-hidden whitespace-nowrap px-2",
                   col.align === "right" && "justify-end",
                   col.align === "center" && "justify-center",
-                  col.pinned && (isGroup ? "bg-[var(--eg-surface-3)]" : isSelected ? "bg-[#eef7f2]" : i % 2 ? "bg-[var(--eg-surface-2)]" : "bg-[var(--eg-surface)]"),
+                  // Pinned cells need an opaque ground (the body scrolls under them), so the
+                  // selected variant is its own token rather than the translucent row tint.
+                  col.pinned && (isGroup ? "bg-[var(--eg-surface-3)]" : isSelected ? "bg-[var(--eg-selected-pinned)]" : i % 2 ? "bg-[var(--eg-surface-2)]" : "bg-[var(--eg-surface)]"),
                   col.pinned === "left" && "border-r border-[var(--eg-border)]",
                   col.pinned === "right" && "border-l border-[var(--eg-border)]",
                   inRange && !isFocused && "bg-[var(--eg-accent)]/15",
