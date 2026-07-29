@@ -203,21 +203,32 @@ function Popover({ anchor, open, onClose, children, align = "left", width, class
     };
   }, [open, anchor, onClose]);
   if (!open) return null;
+  const themed = anchor?.closest("[data-eg-theme]")?.getAttribute("data-eg-theme") ?? void 0;
+  const inherited = {};
+  if (anchor) {
+    const cs = getComputedStyle(anchor);
+    for (const name of ["--eg-primary", "--eg-accent"]) {
+      const value = cs.getPropertyValue(name).trim();
+      if (value) inherited[name] = value;
+    }
+  }
   return createPortal(
     /* @__PURE__ */ jsx2(
       "div",
       {
         ref,
         role: "dialog",
+        "data-eg-theme": themed,
         style: {
           position: "fixed",
           top: pos?.top ?? -9999,
           left: pos?.left ?? -9999,
           width,
           zIndex: 9999,
-          visibility: pos ? "visible" : "hidden"
+          visibility: pos ? "visible" : "hidden",
+          ...inherited
         },
-        className: `rounded-lg border border-slate-200 bg-white shadow-xl ${className}`,
+        className: `rounded-lg border border-[var(--eg-border)] bg-[var(--eg-surface)] shadow-xl ${className}`,
         onMouseDown: (e) => e.stopPropagation(),
         children
       }
@@ -239,17 +250,17 @@ function MenuItem({
       type: "button",
       disabled,
       onClick,
-      className: `flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-40 ${danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-700 hover:bg-slate-100"}`,
+      className: `flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-40 ${danger ? "text-[var(--eg-danger-text)] hover:bg-[var(--eg-danger-bg)]" : "text-[var(--eg-text)] hover:bg-[var(--eg-surface-3)]"}`,
       children: [
-        /* @__PURE__ */ jsx2("span", { className: "flex w-4 justify-center text-slate-400", children: icon }),
+        /* @__PURE__ */ jsx2("span", { className: "flex w-4 justify-center text-[var(--eg-text-faint)]", children: icon }),
         /* @__PURE__ */ jsx2("span", { className: "flex-1 truncate", children: label }),
-        shortcut && /* @__PURE__ */ jsx2("span", { className: "text-[11px] text-slate-400", children: shortcut })
+        shortcut && /* @__PURE__ */ jsx2("span", { className: "text-[11px] text-[var(--eg-text-faint)]", children: shortcut })
       ]
     }
   );
 }
 function MenuDivider() {
-  return /* @__PURE__ */ jsx2("div", { className: "my-1 border-t border-slate-100" });
+  return /* @__PURE__ */ jsx2("div", { className: "my-1 border-t border-[var(--eg-border-soft)]" });
 }
 
 // src/utils.ts
@@ -568,7 +579,7 @@ function countActive(filters) {
 
 // src/ColumnMenu.tsx
 import { Fragment, jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
-var INPUT = "w-full rounded border border-slate-200 px-2 py-1.5 text-[13px] text-slate-800 outline-none focus:border-[var(--eg-accent)] focus:ring-1 focus:ring-[var(--eg-accent)]/30";
+var INPUT = "w-full rounded border border-[var(--eg-border)] px-2 py-1.5 text-[13px] text-[var(--eg-text)] outline-none focus:border-[var(--eg-accent)] focus:ring-1 focus:ring-[var(--eg-accent)]/30";
 function TextFilterEditor({ model, onChange }) {
   const needsValue = model.op !== "blank" && model.op !== "notBlank";
   return /* @__PURE__ */ jsxs3("div", { className: "flex flex-col gap-1.5", children: [
@@ -671,7 +682,7 @@ function SetFilterEditor({
   };
   return /* @__PURE__ */ jsxs3("div", { className: "flex flex-col gap-1.5", children: [
     /* @__PURE__ */ jsxs3("div", { className: "relative", children: [
-      /* @__PURE__ */ jsx3(Search, { size: 13, className: "absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" }),
+      /* @__PURE__ */ jsx3(Search, { size: 13, className: "absolute left-2 top-1/2 -translate-y-1/2 text-[var(--eg-text-faint)]" }),
       /* @__PURE__ */ jsx3(
         "input",
         {
@@ -683,13 +694,13 @@ function SetFilterEditor({
         }
       )
     ] }),
-    /* @__PURE__ */ jsxs3("label", { className: "flex cursor-pointer items-center gap-2 border-b border-slate-100 px-1 pb-1.5 text-[13px] font-medium text-slate-700", children: [
+    /* @__PURE__ */ jsxs3("label", { className: "flex cursor-pointer items-center gap-2 border-b border-[var(--eg-border-soft)] px-1 pb-1.5 text-[13px] font-medium text-[var(--eg-text)]", children: [
       /* @__PURE__ */ jsx3("input", { type: "checkbox", checked: allVisibleChecked, onChange: toggleVisible, className: "accent-[var(--eg-accent)]" }),
       search ? `Select all (${visible.length} shown)` : "Select all"
     ] }),
     /* @__PURE__ */ jsxs3("div", { className: "max-h-56 overflow-y-auto pr-1", children: [
-      visible.length === 0 && /* @__PURE__ */ jsx3("div", { className: "px-1 py-3 text-center text-[12px] text-slate-400", children: "No matches" }),
-      visible.map((o) => /* @__PURE__ */ jsxs3("label", { className: "flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[13px] text-slate-700 hover:bg-slate-50", children: [
+      visible.length === 0 && /* @__PURE__ */ jsx3("div", { className: "px-1 py-3 text-center text-[12px] text-[var(--eg-text-faint)]", children: "No matches" }),
+      visible.map((o) => /* @__PURE__ */ jsxs3("label", { className: "flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-[13px] text-[var(--eg-text)] hover:bg-[var(--eg-surface-2)]", children: [
         /* @__PURE__ */ jsx3(
           "input",
           {
@@ -699,8 +710,8 @@ function SetFilterEditor({
             className: "accent-[var(--eg-accent)]"
           }
         ),
-        /* @__PURE__ */ jsx3("span", { className: "flex-1 truncate", children: o.value === "" ? /* @__PURE__ */ jsx3("em", { className: "text-slate-400", children: "(Blank)" }) : o.value }),
-        /* @__PURE__ */ jsx3("span", { className: "text-[11px] text-slate-400", children: o.count })
+        /* @__PURE__ */ jsx3("span", { className: "flex-1 truncate", children: o.value === "" ? /* @__PURE__ */ jsx3("em", { className: "text-[var(--eg-text-faint)]", children: "(Blank)" }) : o.value }),
+        /* @__PURE__ */ jsx3("span", { className: "text-[11px] text-[var(--eg-text-faint)]", children: o.count })
       ] }, o.value))
     ] })
   ] });
@@ -730,12 +741,12 @@ function ColumnMenu(props) {
   const current = model ?? (filterKind ? emptyModel(filterKind) : void 0);
   const active = isActive(model);
   return /* @__PURE__ */ jsxs3(Popover, { anchor: props.anchor, open, onClose, align: "right", width: 260, children: [
-    filterKind && /* @__PURE__ */ jsx3("div", { className: "flex border-b border-slate-100 text-[12px] font-medium", children: ["menu", "filter"].map((t) => /* @__PURE__ */ jsx3(
+    filterKind && /* @__PURE__ */ jsx3("div", { className: "flex border-b border-[var(--eg-border-soft)] text-[12px] font-medium", children: ["menu", "filter"].map((t) => /* @__PURE__ */ jsx3(
       "button",
       {
         type: "button",
         onClick: () => setTab(t),
-        className: `flex-1 px-3 py-2 transition-colors ${tab === t ? "border-b-2 border-[var(--eg-accent)] text-[var(--eg-primary)]" : "text-slate-500 hover:text-slate-700"}`,
+        className: `flex-1 px-3 py-2 transition-colors ${tab === t ? "border-b-2 border-[var(--eg-accent)] text-[var(--eg-primary)]" : "text-[var(--eg-text-muted)] hover:text-[var(--eg-text)]"}`,
         children: t === "menu" ? "Column" : `Filter${active ? " \u2022" : ""}`
       },
       t
@@ -833,13 +844,13 @@ function ColumnMenu(props) {
           rows: props.filterRows
         }
       ),
-      /* @__PURE__ */ jsxs3("div", { className: "mt-2 flex items-center justify-between border-t border-slate-100 pt-2", children: [
+      /* @__PURE__ */ jsxs3("div", { className: "mt-2 flex items-center justify-between border-t border-[var(--eg-border-soft)] pt-2", children: [
         /* @__PURE__ */ jsxs3(
           "button",
           {
             type: "button",
             onClick: () => onModelChange(void 0),
-            className: "flex items-center gap-1 text-[12px] text-slate-500 hover:text-rose-600",
+            className: "flex items-center gap-1 text-[12px] text-[var(--eg-text-muted)] hover:text-[var(--eg-danger-text)]",
             children: [
               /* @__PURE__ */ jsx3(X, { size: 12 }),
               " Clear"
@@ -882,11 +893,11 @@ function GroupPanel(props) {
         setOver(false);
         if (canDrop && props.draggingField) props.onDropField(props.draggingField);
       },
-      className: `flex min-h-[38px] flex-wrap items-center gap-1.5 border-b border-slate-200 px-3 py-1.5 text-[12px] transition-colors ${over ? "bg-[var(--eg-accent)]/10" : "bg-slate-50"}`,
+      className: `flex min-h-[38px] flex-wrap items-center gap-1.5 border-b border-[var(--eg-border)] px-3 py-1.5 text-[12px] transition-colors ${over ? "bg-[var(--eg-accent)]/10" : "bg-[var(--eg-surface-2)]"}`,
       children: [
-        /* @__PURE__ */ jsx4(Group, { size: 13, className: "text-slate-400" }),
-        props.groupBy.length === 0 ? /* @__PURE__ */ jsx4("span", { className: "text-slate-400", children: "Drag a column header here to group by it" }) : props.groupBy.map((field, i) => /* @__PURE__ */ jsxs4(React3.Fragment, { children: [
-          i > 0 && /* @__PURE__ */ jsx4(ChevronRight, { size: 12, className: "text-slate-300" }),
+        /* @__PURE__ */ jsx4(Group, { size: 13, className: "text-[var(--eg-text-faint)]" }),
+        props.groupBy.length === 0 ? /* @__PURE__ */ jsx4("span", { className: "text-[var(--eg-text-faint)]", children: "Drag a column header here to group by it" }) : props.groupBy.map((field, i) => /* @__PURE__ */ jsxs4(React3.Fragment, { children: [
+          i > 0 && /* @__PURE__ */ jsx4(ChevronRight, { size: 12, className: "text-[var(--eg-text-faint)]" }),
           /* @__PURE__ */ jsxs4(
             "span",
             {
@@ -904,10 +915,10 @@ function GroupPanel(props) {
                   else props.onDropField(src);
                 }
               },
-              className: "inline-flex cursor-grab items-center gap-1 rounded-full border border-[var(--eg-accent)]/40 bg-white px-2 py-0.5 font-medium text-[var(--eg-primary)]",
+              className: "inline-flex cursor-grab items-center gap-1 rounded-full border border-[var(--eg-accent)]/40 bg-[var(--eg-surface)] px-2 py-0.5 font-medium text-[var(--eg-primary)]",
               children: [
                 label(field),
-                /* @__PURE__ */ jsx4("button", { type: "button", onClick: () => props.onRemove(field), className: "text-slate-400 hover:text-rose-600", children: /* @__PURE__ */ jsx4(X, { size: 11 }) })
+                /* @__PURE__ */ jsx4("button", { type: "button", onClick: () => props.onRemove(field), className: "text-[var(--eg-text-faint)] hover:text-[var(--eg-danger-text)]", children: /* @__PURE__ */ jsx4(X, { size: 11 }) })
               ]
             }
           )
@@ -921,15 +932,15 @@ function GroupPanel(props) {
 import { Fragment as Fragment2, jsx as jsx5, jsxs as jsxs5 } from "react/jsx-runtime";
 function Stat({ label, value }) {
   return /* @__PURE__ */ jsxs5("span", { className: "whitespace-nowrap", children: [
-    /* @__PURE__ */ jsx5("span", { className: "text-slate-400", children: label }),
+    /* @__PURE__ */ jsx5("span", { className: "text-[var(--eg-text-faint)]", children: label }),
     " ",
-    /* @__PURE__ */ jsx5("span", { className: "font-medium text-slate-700", children: value })
+    /* @__PURE__ */ jsx5("span", { className: "font-medium text-[var(--eg-text)]", children: value })
   ] });
 }
 function StatusBar(props) {
   const filtered = props.filteredRows !== props.totalRows;
   const s = props.rangeSummary;
-  return /* @__PURE__ */ jsxs5("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-1.5 text-[11.5px]", children: [
+  return /* @__PURE__ */ jsxs5("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--eg-border)] bg-[var(--eg-surface-2)] px-3 py-1.5 text-[11.5px]", children: [
     /* @__PURE__ */ jsx5(Stat, { label: "Rows", value: filtered ? `${formatNumber(props.filteredRows)} of ${formatNumber(props.totalRows)}` : formatNumber(props.totalRows) }),
     props.groupCount > 0 && /* @__PURE__ */ jsx5(Stat, { label: "Groups", value: formatNumber(props.groupCount) }),
     props.selectedRows > 0 && /* @__PURE__ */ jsx5(Stat, { label: "Selected", value: formatNumber(props.selectedRows) }),
@@ -990,13 +1001,13 @@ function Zone({
         if (dragging) onAssign(dragging, zone);
         setDragging(null);
       },
-      className: `mb-2 rounded-md border p-2 transition-colors ${overZone === zone ? "border-[var(--eg-accent)] bg-[var(--eg-accent)]/10" : "border-slate-200 bg-slate-50/60"}`,
+      className: `mb-2 rounded-md border p-2 transition-colors ${overZone === zone ? "border-[var(--eg-accent)] bg-[var(--eg-accent)]/10" : "border-[var(--eg-border)] bg-[var(--eg-surface-2)]/60"}`,
       children: [
-        /* @__PURE__ */ jsxs6("div", { className: "mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500", children: [
+        /* @__PURE__ */ jsxs6("div", { className: "mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--eg-text-muted)]", children: [
           icon,
           title
         ] }),
-        fields.length === 0 ? /* @__PURE__ */ jsx6("div", { className: "px-1 py-1 text-[11px] italic text-slate-400", children: hint }) : /* @__PURE__ */ jsx6("div", { className: "flex flex-col gap-1", children: fields.map((f) => /* @__PURE__ */ jsxs6(
+        fields.length === 0 ? /* @__PURE__ */ jsx6("div", { className: "px-1 py-1 text-[11px] italic text-[var(--eg-text-faint)]", children: hint }) : /* @__PURE__ */ jsx6("div", { className: "flex flex-col gap-1", children: fields.map((f) => /* @__PURE__ */ jsxs6(
           "div",
           {
             draggable: true,
@@ -1021,9 +1032,9 @@ function Zone({
               setDragging(null);
               setOverZone(null);
             },
-            className: "flex cursor-grab items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px]",
+            className: "flex cursor-grab items-center gap-1 rounded border border-[var(--eg-border)] bg-[var(--eg-surface)] px-1.5 py-1 text-[12px]",
             children: [
-              /* @__PURE__ */ jsx6(GripVertical, { size: 12, className: "shrink-0 text-slate-300" }),
+              /* @__PURE__ */ jsx6(GripVertical, { size: 12, className: "shrink-0 text-[var(--eg-text-faint)]" }),
               /* @__PURE__ */ jsx6("span", { className: "flex-1 truncate", children: label(f) }),
               zone === "values" && /* @__PURE__ */ jsx6(
                 "select",
@@ -1031,11 +1042,11 @@ function Zone({
                   value: typeof aggOf(f) === "string" ? String(aggOf(f)) : "sum",
                   onChange: (e) => onSetAgg(f, e.target.value),
                   onClick: (e) => e.stopPropagation(),
-                  className: "rounded border border-slate-200 bg-white px-1 text-[10px] text-slate-600 outline-none",
+                  className: "rounded border border-[var(--eg-border)] bg-[var(--eg-surface)] px-1 text-[10px] text-[var(--eg-text-muted)] outline-none",
                   children: AGGS.map((a) => /* @__PURE__ */ jsx6("option", { value: String(a.value), children: a.label }, String(a.value)))
                 }
               ),
-              /* @__PURE__ */ jsx6("button", { type: "button", onClick: () => onAssign(f, null), className: "text-slate-400 hover:text-rose-600", children: /* @__PURE__ */ jsx6(X, { size: 11 }) })
+              /* @__PURE__ */ jsx6("button", { type: "button", onClick: () => onAssign(f, null), className: "text-[var(--eg-text-faint)] hover:text-[var(--eg-danger-text)]", children: /* @__PURE__ */ jsx6(X, { size: 11 }) })
             ]
           },
           f
@@ -1079,8 +1090,8 @@ function PivotPanel(props) {
     aggOf
   };
   return /* @__PURE__ */ jsxs6("div", { className: "flex flex-col", children: [
-    /* @__PURE__ */ jsxs6("div", { className: "sticky top-0 z-10 border-b border-slate-100 bg-white p-2.5", children: [
-      /* @__PURE__ */ jsxs6("label", { className: "mb-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-slate-700", children: [
+    /* @__PURE__ */ jsxs6("div", { className: "sticky top-0 z-10 border-b border-[var(--eg-border-soft)] bg-[var(--eg-surface)] p-2.5", children: [
+      /* @__PURE__ */ jsxs6("label", { className: "mb-2 flex cursor-pointer items-center gap-2 text-[13px] font-medium text-[var(--eg-text)]", children: [
         /* @__PURE__ */ jsx6(
           "span",
           {
@@ -1094,18 +1105,18 @@ function PivotPanel(props) {
                 onToggleEnabled(!enabled);
               }
             },
-            className: `relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${enabled ? "bg-[var(--eg-accent)]" : "bg-slate-300"}`,
-            children: /* @__PURE__ */ jsx6("span", { className: `absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${enabled ? "left-[18px]" : "left-0.5"}` })
+            className: `relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${enabled ? "bg-[var(--eg-accent)]" : "bg-[var(--eg-surface-4)]"}`,
+            children: /* @__PURE__ */ jsx6("span", { className: `absolute top-0.5 h-4 w-4 rounded-full bg-[var(--eg-surface)] transition-all ${enabled ? "left-[18px]" : "left-0.5"}` })
           }
         ),
         "Pivot Mode"
       ] }),
       /* @__PURE__ */ jsxs6("div", { className: "relative", children: [
-        /* @__PURE__ */ jsx6(Search, { size: 13, className: "absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" }),
+        /* @__PURE__ */ jsx6(Search, { size: 13, className: "absolute left-2 top-1/2 -translate-y-1/2 text-[var(--eg-text-faint)]" }),
         /* @__PURE__ */ jsx6(
           "input",
           {
-            className: "w-full rounded border border-slate-200 py-1.5 pl-7 pr-2 text-[13px] outline-none focus:border-[var(--eg-accent)]",
+            className: "w-full rounded border border-[var(--eg-border)] py-1.5 pl-7 pr-2 text-[13px] outline-none focus:border-[var(--eg-accent)]",
             placeholder: "Search\u2026",
             value: search,
             onChange: (e) => setSearch(e.target.value)
@@ -1126,7 +1137,7 @@ function PivotPanel(props) {
                 setDragging(null);
                 setOverZone(null);
               },
-              className: "flex cursor-grab items-center gap-1.5 rounded px-1 py-1 text-[13px] hover:bg-slate-50",
+              className: "flex cursor-grab items-center gap-1.5 rounded px-1 py-1 text-[13px] hover:bg-[var(--eg-surface-2)]",
               children: [
                 /* @__PURE__ */ jsx6(
                   "input",
@@ -1137,15 +1148,15 @@ function PivotPanel(props) {
                     className: "accent-[var(--eg-accent)]"
                   }
                 ),
-                /* @__PURE__ */ jsx6(GripVertical, { size: 12, className: "shrink-0 text-slate-300" }),
-                /* @__PURE__ */ jsx6("span", { className: `flex-1 truncate ${z ? "text-slate-800" : "text-slate-500"}`, children: c.headerName ?? c.field }),
-                z && /* @__PURE__ */ jsx6("span", { className: "text-[9px] uppercase text-slate-400", children: z })
+                /* @__PURE__ */ jsx6(GripVertical, { size: 12, className: "shrink-0 text-[var(--eg-text-faint)]" }),
+                /* @__PURE__ */ jsx6("span", { className: `flex-1 truncate ${z ? "text-[var(--eg-text)]" : "text-[var(--eg-text-muted)]"}`, children: c.headerName ?? c.field }),
+                z && /* @__PURE__ */ jsx6("span", { className: "text-[9px] uppercase text-[var(--eg-text-faint)]", children: z })
               ]
             },
             c.field
           );
         }),
-        !listed.length && /* @__PURE__ */ jsx6("div", { className: "px-1 py-3 text-center text-[12px] text-slate-400", children: "No matches" })
+        !listed.length && /* @__PURE__ */ jsx6("div", { className: "px-1 py-3 text-center text-[12px] text-[var(--eg-text-faint)]", children: "No matches" })
       ] }),
       /* @__PURE__ */ jsx6(
         Zone,
@@ -1180,7 +1191,7 @@ function PivotPanel(props) {
           hint: "Drag a field here"
         }
       ),
-      enabled && (!rowFields.length || !valueFields.length || !columnFields.length) && /* @__PURE__ */ jsx6("div", { className: "rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800", children: "A pivot needs at least one field in each of the three zones. Until then the grid shows its normal rows." })
+      enabled && (!rowFields.length || !valueFields.length || !columnFields.length) && /* @__PURE__ */ jsx6("div", { className: "rounded border border-[var(--eg-warn-border)] bg-[var(--eg-warn-bg)] px-2 py-1.5 text-[11px] text-[var(--eg-warn-text)]", children: "A pivot needs at least one field in each of the three zones. Until then the grid shows its normal rows." })
     ] })
   ] });
 }
@@ -1191,15 +1202,15 @@ var TAB_BTN = "flex w-full flex-col items-center gap-1 px-1.5 py-2.5 text-[10px]
 function ToolPanel(props) {
   const { tab, onTabChange } = props;
   const activeFilters = countActive(props.filters);
-  return /* @__PURE__ */ jsxs7("div", { className: "flex shrink-0 border-l border-slate-200 bg-white", children: [
-    tab && /* @__PURE__ */ jsx7("div", { className: "w-[260px] overflow-y-auto border-r border-slate-200", children: tab === "columns" ? /* @__PURE__ */ jsx7(ColumnsPanel, { ...props }) : tab === "pivot" && props.pivot ? /* @__PURE__ */ jsx7(PivotPanel, { ...props.pivot }) : /* @__PURE__ */ jsx7(FiltersPanel, { ...props }) }),
-    /* @__PURE__ */ jsxs7("div", { className: "flex w-[52px] flex-col bg-slate-50", children: [
+  return /* @__PURE__ */ jsxs7("div", { className: "flex shrink-0 border-l border-[var(--eg-border)] bg-[var(--eg-surface)]", children: [
+    tab && /* @__PURE__ */ jsx7("div", { className: "w-[260px] overflow-y-auto border-r border-[var(--eg-border)]", children: tab === "columns" ? /* @__PURE__ */ jsx7(ColumnsPanel, { ...props }) : tab === "pivot" && props.pivot ? /* @__PURE__ */ jsx7(PivotPanel, { ...props.pivot }) : /* @__PURE__ */ jsx7(FiltersPanel, { ...props }) }),
+    /* @__PURE__ */ jsxs7("div", { className: "flex w-[52px] flex-col bg-[var(--eg-surface-2)]", children: [
       /* @__PURE__ */ jsxs7(
         "button",
         {
           type: "button",
           onClick: () => onTabChange(tab === "columns" ? null : "columns"),
-          className: `${TAB_BTN} ${tab === "columns" ? "bg-white text-[var(--eg-primary)]" : "text-slate-500 hover:bg-white/60"}`,
+          className: `${TAB_BTN} ${tab === "columns" ? "bg-[var(--eg-surface)] text-[var(--eg-primary)]" : "text-[var(--eg-text-muted)] hover:bg-[var(--eg-surface)]/60"}`,
           children: [
             /* @__PURE__ */ jsx7(Columns3, { size: 16 }),
             "Columns"
@@ -1211,7 +1222,7 @@ function ToolPanel(props) {
         {
           type: "button",
           onClick: () => onTabChange(tab === "filters" ? null : "filters"),
-          className: `${TAB_BTN} relative ${tab === "filters" ? "bg-white text-[var(--eg-primary)]" : "text-slate-500 hover:bg-white/60"}`,
+          className: `${TAB_BTN} relative ${tab === "filters" ? "bg-[var(--eg-surface)] text-[var(--eg-primary)]" : "text-[var(--eg-text-muted)] hover:bg-[var(--eg-surface)]/60"}`,
           children: [
             /* @__PURE__ */ jsx7(Filter, { size: 16 }),
             "Filters",
@@ -1224,7 +1235,7 @@ function ToolPanel(props) {
         {
           type: "button",
           onClick: () => onTabChange(tab === "pivot" ? null : "pivot"),
-          className: `${TAB_BTN} relative ${tab === "pivot" ? "bg-white text-[var(--eg-primary)]" : "text-slate-500 hover:bg-white/60"}`,
+          className: `${TAB_BTN} relative ${tab === "pivot" ? "bg-[var(--eg-surface)] text-[var(--eg-primary)]" : "text-[var(--eg-text-muted)] hover:bg-[var(--eg-surface)]/60"}`,
           children: [
             /* @__PURE__ */ jsx7(Group, { size: 16 }),
             "Pivot",
@@ -1245,20 +1256,20 @@ function ColumnsPanel(props) {
   }, [props.columns, search]);
   const shownCount = props.columns.filter((c) => !props.hidden.has(c.field)).length;
   return /* @__PURE__ */ jsxs7("div", { className: "flex flex-col", children: [
-    /* @__PURE__ */ jsxs7("div", { className: "sticky top-0 z-10 border-b border-slate-100 bg-white p-2.5", children: [
+    /* @__PURE__ */ jsxs7("div", { className: "sticky top-0 z-10 border-b border-[var(--eg-border-soft)] bg-[var(--eg-surface)] p-2.5", children: [
       /* @__PURE__ */ jsxs7("div", { className: "relative mb-2", children: [
-        /* @__PURE__ */ jsx7(Search, { size: 13, className: "absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" }),
+        /* @__PURE__ */ jsx7(Search, { size: 13, className: "absolute left-2 top-1/2 -translate-y-1/2 text-[var(--eg-text-faint)]" }),
         /* @__PURE__ */ jsx7(
           "input",
           {
-            className: "w-full rounded border border-slate-200 py-1.5 pl-7 pr-2 text-[13px] outline-none focus:border-[var(--eg-accent)]",
+            className: "w-full rounded border border-[var(--eg-border)] py-1.5 pl-7 pr-2 text-[13px] outline-none focus:border-[var(--eg-accent)]",
             placeholder: "Search columns\u2026",
             value: search,
             onChange: (e) => setSearch(e.target.value)
           }
         )
       ] }),
-      /* @__PURE__ */ jsxs7("div", { className: "flex items-center justify-between text-[11px] text-slate-500", children: [
+      /* @__PURE__ */ jsxs7("div", { className: "flex items-center justify-between text-[11px] text-[var(--eg-text-muted)]", children: [
         /* @__PURE__ */ jsxs7("span", { children: [
           shownCount,
           " of ",
@@ -1293,9 +1304,9 @@ function ColumnsPanel(props) {
             setDragField(null);
           },
           onDragEnd: () => setDragField(null),
-          className: `group flex items-center gap-1.5 rounded px-1.5 py-1 text-[13px] hover:bg-slate-50 ${dragField === col.field ? "opacity-40" : ""}`,
+          className: `group flex items-center gap-1.5 rounded px-1.5 py-1 text-[13px] hover:bg-[var(--eg-surface-2)] ${dragField === col.field ? "opacity-40" : ""}`,
           children: [
-            /* @__PURE__ */ jsx7(GripVertical, { size: 13, className: search ? "text-transparent" : "cursor-grab text-slate-300" }),
+            /* @__PURE__ */ jsx7(GripVertical, { size: 13, className: search ? "text-transparent" : "cursor-grab text-[var(--eg-text-faint)]" }),
             /* @__PURE__ */ jsx7(
               "input",
               {
@@ -1306,14 +1317,14 @@ function ColumnsPanel(props) {
                 className: "accent-[var(--eg-accent)] disabled:opacity-40"
               }
             ),
-            /* @__PURE__ */ jsx7("span", { className: `flex-1 truncate ${isHidden ? "text-slate-400" : "text-slate-700"}`, children: col.headerName ?? col.field }),
+            /* @__PURE__ */ jsx7("span", { className: `flex-1 truncate ${isHidden ? "text-[var(--eg-text-faint)]" : "text-[var(--eg-text)]"}`, children: col.headerName ?? col.field }),
             col.enableRowGroup !== false && /* @__PURE__ */ jsx7(
               "button",
               {
                 type: "button",
                 title: grouped ? "Remove from row groups" : "Group by this column",
                 onClick: () => props.onToggleGroup(col.field),
-                className: `rounded px-1 text-[10px] font-bold transition-colors ${grouped ? "bg-[var(--eg-accent)] text-white" : "text-slate-300 hover:text-slate-600 group-hover:text-slate-500"}`,
+                className: `rounded px-1 text-[10px] font-bold transition-colors ${grouped ? "bg-[var(--eg-accent)] text-white" : "text-[var(--eg-text-faint)] hover:text-[var(--eg-text-muted)] group-hover:text-[var(--eg-text-muted)]"}`,
                 children: "G"
               }
             ),
@@ -1323,7 +1334,7 @@ function ColumnsPanel(props) {
                 type: "button",
                 title: pin ? `Pinned ${pin} \u2014 click to cycle` : "Pin column",
                 onClick: () => props.onTogglePin(col.field),
-                className: `rounded p-0.5 transition-colors ${pin ? "text-[var(--eg-accent)]" : "text-slate-300 hover:text-slate-600"}`,
+                className: `rounded p-0.5 transition-colors ${pin ? "text-[var(--eg-accent)]" : "text-[var(--eg-text-faint)] hover:text-[var(--eg-text-muted)]"}`,
                 children: /* @__PURE__ */ jsx7(Pin, { size: 12 })
               }
             )
@@ -1339,7 +1350,7 @@ function FiltersPanel(props) {
   const filterable = props.columns.filter((c) => props.filterKinds[c.field]);
   const active = countActive(props.filters);
   return /* @__PURE__ */ jsxs7("div", { className: "flex flex-col", children: [
-    /* @__PURE__ */ jsxs7("div", { className: "sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-2.5 text-[11px] text-slate-500", children: [
+    /* @__PURE__ */ jsxs7("div", { className: "sticky top-0 z-10 flex items-center justify-between border-b border-[var(--eg-border-soft)] bg-[var(--eg-surface)] p-2.5 text-[11px] text-[var(--eg-text-muted)]", children: [
       /* @__PURE__ */ jsxs7("span", { children: [
         active,
         " active filter",
@@ -1351,7 +1362,7 @@ function FiltersPanel(props) {
           type: "button",
           disabled: !active,
           onClick: props.onClearFilters,
-          className: "flex items-center gap-1 hover:text-rose-600 disabled:opacity-40",
+          className: "flex items-center gap-1 hover:text-[var(--eg-danger-text)] disabled:opacity-40",
           children: [
             /* @__PURE__ */ jsx7(X, { size: 11 }),
             " Clear all"
@@ -1365,21 +1376,21 @@ function FiltersPanel(props) {
         const model = props.filters[col.field] ?? emptyModel(kind);
         const on = isActive(props.filters[col.field]);
         const expanded = open === col.field;
-        return /* @__PURE__ */ jsxs7("div", { className: "mb-1 rounded border border-slate-100", children: [
+        return /* @__PURE__ */ jsxs7("div", { className: "mb-1 rounded border border-[var(--eg-border-soft)]", children: [
           /* @__PURE__ */ jsxs7(
             "button",
             {
               type: "button",
               onClick: () => setOpen(expanded ? null : col.field),
-              className: "flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[13px] text-slate-700 hover:bg-slate-50",
+              className: "flex w-full items-center gap-1.5 px-2 py-1.5 text-left text-[13px] text-[var(--eg-text)] hover:bg-[var(--eg-surface-2)]",
               children: [
-                /* @__PURE__ */ jsx7(Filter, { size: 11, className: on ? "text-[var(--eg-accent)]" : "text-slate-300" }),
+                /* @__PURE__ */ jsx7(Filter, { size: 11, className: on ? "text-[var(--eg-accent)]" : "text-[var(--eg-text-faint)]" }),
                 /* @__PURE__ */ jsx7("span", { className: "flex-1 truncate", children: col.headerName ?? col.field }),
-                /* @__PURE__ */ jsx7("span", { className: "text-[10px] text-slate-400", children: expanded ? "\u2212" : "+" })
+                /* @__PURE__ */ jsx7("span", { className: "text-[10px] text-[var(--eg-text-faint)]", children: expanded ? "\u2212" : "+" })
               ]
             }
           ),
-          expanded && /* @__PURE__ */ jsxs7("div", { className: "border-t border-slate-100 p-2", children: [
+          expanded && /* @__PURE__ */ jsxs7("div", { className: "border-t border-[var(--eg-border-soft)] p-2", children: [
             /* @__PURE__ */ jsx7(
               FilterEditor,
               {
@@ -1395,14 +1406,14 @@ function FiltersPanel(props) {
               {
                 type: "button",
                 onClick: () => props.onFilterChange(col.field, void 0),
-                className: "mt-1.5 text-[11px] text-slate-500 hover:text-rose-600",
+                className: "mt-1.5 text-[11px] text-[var(--eg-text-muted)] hover:text-[var(--eg-danger-text)]",
                 children: "Clear this filter"
               }
             )
           ] })
         ] }, col.field);
       }),
-      filterable.length === 0 && /* @__PURE__ */ jsx7("div", { className: "px-2 py-6 text-center text-[12px] text-slate-400", children: "No filterable columns." })
+      filterable.length === 0 && /* @__PURE__ */ jsx7("div", { className: "px-2 py-6 text-center text-[12px] text-[var(--eg-text-faint)]", children: "No filterable columns." })
     ] })
   ] });
 }
@@ -2170,6 +2181,7 @@ function EnterpriseGridInner(props, apiRef) {
     exportFileName = "export",
     stateKey,
     emptyMessage = "No rows to show.",
+    theme,
     className = "",
     rowClass,
     toolbarExtras
@@ -2940,7 +2952,7 @@ function EnterpriseGridInner(props, apiRef) {
       children: [
         collapsed.has(node.id) ? /* @__PURE__ */ jsx8(ChevronRight, { size: 14 }) : /* @__PURE__ */ jsx8(ChevronDown, { size: 14 }),
         /* @__PURE__ */ jsx8("span", { className: "truncate font-semibold", children: node.label }),
-        /* @__PURE__ */ jsx8("span", { className: "shrink-0 rounded-full bg-slate-200 px-1.5 text-[10px] font-medium text-slate-600", children: node.count })
+        /* @__PURE__ */ jsx8("span", { className: "shrink-0 rounded-full bg-[var(--eg-surface-4)] px-1.5 text-[10px] font-medium text-[var(--eg-text-muted)]", children: node.count })
       ]
     }
   );
@@ -2991,19 +3003,19 @@ function EnterpriseGridInner(props, apiRef) {
       }
       const content = renderAgg(def, groupNode.aggregates[def.field], groupNode.leaves[0]);
       if (!content) return null;
-      return /* @__PURE__ */ jsx8("span", { className: "truncate font-semibold text-slate-700", children: content });
+      return /* @__PURE__ */ jsx8("span", { className: "truncate font-semibold text-[var(--eg-text)]", children: content });
     }
     if (node.kind !== "leaf") return null;
     const row = node.data;
     if (row == null) {
-      return /* @__PURE__ */ jsx8("span", { className: "block h-3 w-3/4 animate-pulse rounded bg-slate-200" });
+      return /* @__PURE__ */ jsx8("span", { className: "block h-3 w-3/4 animate-pulse rounded bg-[var(--eg-surface-4)]" });
     }
     const isEditingCell = editing?.row === rowIdx && editing?.col === colIdx;
     if (isEditingCell) {
       const opts = def.cellEditorParams?.options;
       const common = {
         autoFocus: true,
-        className: `w-full rounded border px-1 py-0.5 text-[13px] outline-none ${editing?.error ? "border-rose-400 bg-rose-50" : "border-[var(--eg-accent)]"}`,
+        className: `w-full rounded border px-1 py-0.5 text-[13px] outline-none ${editing?.error ? "border-[var(--eg-danger-border)] bg-[var(--eg-danger-bg)]" : "border-[var(--eg-accent)]"}`,
         onBlur: () => commitEdit(),
         onClick: (e) => e.stopPropagation()
       };
@@ -3116,7 +3128,7 @@ function EnterpriseGridInner(props, apiRef) {
                     setMenuField(col.def.field);
                     setMenuAnchor(e.currentTarget);
                   },
-                  className: "shrink-0 rounded p-0.5 text-white/50 opacity-0 transition-opacity hover:bg-white/20 hover:text-white group-hover:opacity-100",
+                  className: "shrink-0 rounded p-0.5 text-white/50 opacity-0 transition-opacity hover:bg-[var(--eg-surface)]/20 hover:text-white group-hover:opacity-100",
                   children: /* @__PURE__ */ jsx8(MoreVertical, { size: 13 })
                 }
               ),
@@ -3150,7 +3162,7 @@ function EnterpriseGridInner(props, apiRef) {
           "div",
           {
             style: { position: "absolute", top, height: node.height, width: layoutWidth },
-            className: "border-b border-slate-200 bg-slate-50",
+            className: "border-b border-[var(--eg-border)] bg-[var(--eg-surface-2)]",
             children: /* @__PURE__ */ jsx8("div", { className: "sticky left-0 h-full overflow-auto p-3", style: { width: viewport.width || "100%" }, children: masterDetail?.(node.data) })
           },
           node.id
@@ -3167,8 +3179,8 @@ function EnterpriseGridInner(props, apiRef) {
         {
           style: { position: "absolute", top, height: rowHeight, width: layoutWidth },
           className: classNames(
-            "flex border-b border-slate-100 text-[13px]",
-            isGroup ? "bg-slate-100 font-medium text-slate-700" : i % 2 ? "bg-slate-50/60" : "bg-white",
+            "flex border-b border-[var(--eg-border-soft)] text-[13px]",
+            isGroup ? "bg-[var(--eg-surface-3)] font-medium text-[var(--eg-text)]" : i % 2 ? "bg-[var(--eg-surface-2)]/60" : "bg-[var(--eg-surface)]",
             isSelected && "bg-[var(--eg-accent)]/12",
             !isGroup && onRowClick && "cursor-pointer",
             "hover:bg-[var(--eg-accent)]/8",
@@ -3197,9 +3209,9 @@ function EnterpriseGridInner(props, apiRef) {
                   "flex items-center overflow-hidden whitespace-nowrap px-2",
                   col.align === "right" && "justify-end",
                   col.align === "center" && "justify-center",
-                  col.pinned && (isGroup ? "bg-slate-100" : isSelected ? "bg-[#eef7f2]" : i % 2 ? "bg-slate-50" : "bg-white"),
-                  col.pinned === "left" && "border-r border-slate-200",
-                  col.pinned === "right" && "border-l border-slate-200",
+                  col.pinned && (isGroup ? "bg-[var(--eg-surface-3)]" : isSelected ? "bg-[#eef7f2]" : i % 2 ? "bg-[var(--eg-surface-2)]" : "bg-[var(--eg-surface)]"),
+                  col.pinned === "left" && "border-r border-[var(--eg-border)]",
+                  col.pinned === "right" && "border-l border-[var(--eg-border)]",
                   inRange && !isFocused && "bg-[var(--eg-accent)]/15",
                   isFocused && "outline outline-2 -outline-offset-2 outline-[var(--eg-accent)]",
                   col.special === "group" && "font-semibold",
@@ -3235,7 +3247,7 @@ function EnterpriseGridInner(props, apiRef) {
                         e.stopPropagation();
                         toggleDetail(node.id);
                       },
-                      className: "mr-1 shrink-0 text-slate-400 hover:text-[var(--eg-primary)]",
+                      className: "mr-1 shrink-0 text-[var(--eg-text-faint)] hover:text-[var(--eg-primary)]",
                       children: expandedDetails.has(node.id) ? /* @__PURE__ */ jsx8(ChevronDown, { size: 13 }) : /* @__PURE__ */ jsx8(ChevronRight, { size: 13 })
                     }
                   ),
@@ -3261,25 +3273,26 @@ function EnterpriseGridInner(props, apiRef) {
     {
       ref: rootRef,
       style: rootStyle,
+      "data-eg-theme": theme,
       className: classNames(
-        "flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm",
+        "flex flex-col overflow-hidden rounded-lg border border-[var(--eg-border)] bg-[var(--eg-surface)] shadow-sm",
         maximized && "fixed inset-3 z-[9998]",
         className
       ),
       children: [
-        toolbar && /* @__PURE__ */ jsxs8("div", { className: "flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2", children: [
+        toolbar && /* @__PURE__ */ jsxs8("div", { className: "flex flex-wrap items-center gap-2 border-b border-[var(--eg-border)] bg-[var(--eg-surface)] px-3 py-2", children: [
           /* @__PURE__ */ jsxs8("div", { className: "relative", children: [
-            /* @__PURE__ */ jsx8(Search, { size: 14, className: "absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" }),
+            /* @__PURE__ */ jsx8(Search, { size: 14, className: "absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--eg-text-faint)]" }),
             /* @__PURE__ */ jsx8(
               "input",
               {
                 value: quick,
                 onChange: (e) => setQuick(e.target.value),
                 placeholder: "Search all columns\u2026",
-                className: "h-8 w-64 rounded-md border border-slate-200 pl-8 pr-7 text-[13px] outline-none focus:border-[var(--eg-accent)] focus:ring-1 focus:ring-[var(--eg-accent)]/25"
+                className: "h-8 w-64 rounded-md border border-[var(--eg-border)] pl-8 pr-7 text-[13px] outline-none focus:border-[var(--eg-accent)] focus:ring-1 focus:ring-[var(--eg-accent)]/25"
               }
             ),
-            quick && /* @__PURE__ */ jsx8("button", { type: "button", onClick: () => setQuick(""), className: "absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600", children: /* @__PURE__ */ jsx8(X, { size: 13 }) })
+            quick && /* @__PURE__ */ jsx8("button", { type: "button", onClick: () => setQuick(""), className: "absolute right-2 top-1/2 -translate-y-1/2 text-[var(--eg-text-faint)] hover:text-[var(--eg-text-muted)]", children: /* @__PURE__ */ jsx8(X, { size: 13 }) })
           ] }),
           (activeFilterCount > 0 || sort.length > 0 || groupBy.length > 0) && /* @__PURE__ */ jsxs8(
             "button",
@@ -3290,7 +3303,7 @@ function EnterpriseGridInner(props, apiRef) {
                 setSort([]);
                 setGroupBy([]);
               },
-              className: "flex h-8 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-[12.5px] text-slate-600 hover:bg-slate-50",
+              className: "flex h-8 items-center gap-1.5 rounded-md border border-[var(--eg-border)] px-2.5 text-[12.5px] text-[var(--eg-text-muted)] hover:bg-[var(--eg-surface-2)]",
               children: [
                 /* @__PURE__ */ jsx8(RotateCcw, { size: 13 }),
                 " Reset view"
@@ -3304,7 +3317,7 @@ function EnterpriseGridInner(props, apiRef) {
               {
                 type: "button",
                 onClick: () => exportToCsv(exportOpts()),
-                className: "flex h-8 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50",
+                className: "flex h-8 items-center gap-1.5 rounded-md border border-[var(--eg-border)] px-2.5 text-[12.5px] font-medium text-[var(--eg-text)] hover:bg-[var(--eg-surface-2)]",
                 children: [
                   /* @__PURE__ */ jsx8(Download, { size: 13 }),
                   " CSV"
@@ -3316,7 +3329,7 @@ function EnterpriseGridInner(props, apiRef) {
               {
                 type: "button",
                 onClick: () => runExcelExport(exportOpts()),
-                className: "flex h-8 items-center gap-1.5 rounded-md border border-slate-200 px-2.5 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50",
+                className: "flex h-8 items-center gap-1.5 rounded-md border border-[var(--eg-border)] px-2.5 text-[12.5px] font-medium text-[var(--eg-text)] hover:bg-[var(--eg-surface-2)]",
                 children: [
                   /* @__PURE__ */ jsx8(FileSpreadsheet, { size: 13 }),
                   " Excel"
@@ -3329,7 +3342,7 @@ function EnterpriseGridInner(props, apiRef) {
                 type: "button",
                 onClick: () => setMaximized((m) => !m),
                 title: maximized ? "Restore" : "Maximise",
-                className: "flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50",
+                className: "flex h-8 w-8 items-center justify-center rounded-md border border-[var(--eg-border)] text-[var(--eg-text-muted)] hover:bg-[var(--eg-surface-2)]",
                 children: maximized ? /* @__PURE__ */ jsx8(Minimize2, { size: 13 }) : /* @__PURE__ */ jsx8(Maximize2, { size: 13 })
               }
             ),
@@ -3338,7 +3351,7 @@ function EnterpriseGridInner(props, apiRef) {
               {
                 type: "button",
                 onClick: (e) => setGridMenuAnchor(e.currentTarget),
-                className: "flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50",
+                className: "flex h-8 w-8 items-center justify-center rounded-md border border-[var(--eg-border)] text-[var(--eg-text-muted)] hover:bg-[var(--eg-surface-2)]",
                 children: /* @__PURE__ */ jsx8(MoreVertical, { size: 14 })
               }
             )
@@ -3376,7 +3389,7 @@ function EnterpriseGridInner(props, apiRef) {
                     !loading && nodes.length === 0 && /* @__PURE__ */ jsx8(
                       "div",
                       {
-                        className: "sticky left-0 flex items-center justify-center py-16 text-[13px] text-slate-400",
+                        className: "sticky left-0 flex items-center justify-center py-16 text-[13px] text-[var(--eg-text-faint)]",
                         style: { width: viewport.width || "100%" },
                         children: emptyMessage
                       }
@@ -3385,7 +3398,7 @@ function EnterpriseGridInner(props, apiRef) {
                   grandTotals && nodes.length > 0 && /* @__PURE__ */ jsx8(
                     "div",
                     {
-                      className: "sticky bottom-0 z-20 flex border-t-2 border-[var(--eg-primary)] bg-slate-100 text-[13px] font-semibold text-slate-800",
+                      className: "sticky bottom-0 z-20 flex border-t-2 border-[var(--eg-primary)] bg-[var(--eg-surface-3)] text-[13px] font-semibold text-[var(--eg-text)]",
                       style: { height: rowHeight, width: layoutWidth },
                       children: renderCols.map((col, idx) => {
                         const content = idx === totalsLabelIdx ? `Total \xB7 ${formatNumber(sorted.length)} rows` : col.def ? renderAgg(col.def, grandTotals[col.def.field], sorted[0]) : "";
@@ -3394,7 +3407,7 @@ function EnterpriseGridInner(props, apiRef) {
                           {
                             style: { ...cellStyle(col), zIndex: col.pinned ? 3 : 1 },
                             className: classNames(
-                              "flex items-center overflow-hidden whitespace-nowrap bg-slate-100 px-2",
+                              "flex items-center overflow-hidden whitespace-nowrap bg-[var(--eg-surface-3)] px-2",
                               col.align === "right" && "justify-end",
                               col.align === "center" && "justify-center"
                             ),
@@ -3406,7 +3419,7 @@ function EnterpriseGridInner(props, apiRef) {
                     }
                   )
                 ] }),
-                loading && /* @__PURE__ */ jsx8("div", { className: "sticky left-0 top-0 z-40 flex h-full w-full items-center justify-center bg-white/70", style: { width: viewport.width }, children: /* @__PURE__ */ jsx8(Loader2, { size: 22, className: "animate-spin text-[var(--eg-primary)]" }) })
+                loading && /* @__PURE__ */ jsx8("div", { className: "sticky left-0 top-0 z-40 flex h-full w-full items-center justify-center bg-[var(--eg-surface)]/70", style: { width: viewport.width }, children: /* @__PURE__ */ jsx8(Loader2, { size: 22, className: "animate-spin text-[var(--eg-primary)]" }) })
               ]
             }
           ),
@@ -3445,7 +3458,7 @@ function EnterpriseGridInner(props, apiRef) {
             }
           )
         ] }),
-        pagination && /* @__PURE__ */ jsxs8("div", { className: "flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-3 py-1.5 text-[12.5px] text-slate-600", children: [
+        pagination && /* @__PURE__ */ jsxs8("div", { className: "flex flex-wrap items-center justify-between gap-2 border-t border-[var(--eg-border)] bg-[var(--eg-surface)] px-3 py-1.5 text-[12.5px] text-[var(--eg-text-muted)]", children: [
           /* @__PURE__ */ jsxs8("div", { className: "flex items-center gap-2", children: [
             /* @__PURE__ */ jsx8("span", { children: "Rows per page" }),
             /* @__PURE__ */ jsx8(
@@ -3453,11 +3466,11 @@ function EnterpriseGridInner(props, apiRef) {
               {
                 value: pageSize,
                 onChange: (e) => setPageSize(Number(e.target.value)),
-                className: "rounded border border-slate-200 px-1.5 py-0.5 outline-none focus:border-[var(--eg-accent)]",
+                className: "rounded border border-[var(--eg-border)] px-1.5 py-0.5 outline-none focus:border-[var(--eg-accent)]",
                 children: pageSizeOptions.map((n) => /* @__PURE__ */ jsx8("option", { value: n, children: n }, n))
               }
             ),
-            /* @__PURE__ */ jsx8("span", { className: "text-slate-400", children: allNodes.length === 0 ? "0 rows" : `${formatNumber(safePage * pageSize + 1)}\u2013${formatNumber(Math.min((safePage + 1) * pageSize, allNodes.length))} of ${formatNumber(allNodes.length)}` })
+            /* @__PURE__ */ jsx8("span", { className: "text-[var(--eg-text-faint)]", children: allNodes.length === 0 ? "0 rows" : `${formatNumber(safePage * pageSize + 1)}\u2013${formatNumber(Math.min((safePage + 1) * pageSize, allNodes.length))} of ${formatNumber(allNodes.length)}` })
           ] }),
           /* @__PURE__ */ jsxs8("div", { className: "flex items-center gap-1", children: [
             /* @__PURE__ */ jsx8(PagBtn, { disabled: safePage === 0, onClick: () => setPage(0), children: /* @__PURE__ */ jsx8(ChevronsLeft, { size: 15 }) }),
@@ -3560,7 +3573,7 @@ function PagBtn({ children, disabled, onClick }) {
       type: "button",
       disabled,
       onClick,
-      className: "flex h-7 w-7 items-center justify-center rounded text-slate-500 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-30",
+      className: "flex h-7 w-7 items-center justify-center rounded text-[var(--eg-text-muted)] transition-colors hover:bg-[var(--eg-surface-3)] disabled:pointer-events-none disabled:opacity-30",
       children
     }
   );
@@ -3592,7 +3605,7 @@ function ContextMenuPortal({ x, y, items, onClose }) {
     {
       ref,
       style: { position: "fixed", top: pos.top, left: pos.left, zIndex: 9999, minWidth: 210 },
-      className: "rounded-lg border border-slate-200 bg-white py-1 shadow-xl",
+      className: "rounded-lg border border-[var(--eg-border)] bg-[var(--eg-surface)] py-1 shadow-xl",
       onMouseDown: (e) => e.stopPropagation(),
       children: items.map(
         (it, i) => it.divider ? /* @__PURE__ */ jsx8(MenuDivider, {}, `d${i}`) : /* @__PURE__ */ jsx8(
@@ -3674,11 +3687,11 @@ function category(field, headerName, extra = {}) {
   return { field, headerName, type: "text", filter: "set", width: 140, enableRowGroup: true, ...extra };
 }
 var TONE_CLASS = {
-  green: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-  amber: "bg-amber-50 text-amber-700 ring-amber-600/20",
-  red: "bg-rose-50 text-rose-700 ring-rose-600/20",
-  blue: "bg-sky-50 text-sky-700 ring-sky-600/20",
-  slate: "bg-slate-100 text-slate-600 ring-slate-500/20"
+  green: "bg-[var(--eg-ok-bg)] text-[var(--eg-ok-text)] ring-emerald-600/20",
+  amber: "bg-[var(--eg-warn-bg)] text-[var(--eg-warn-text)] ring-amber-600/20",
+  red: "bg-[var(--eg-danger-bg)] text-[var(--eg-danger-text)] ring-rose-600/20",
+  blue: "bg-[var(--eg-info-bg)] text-[var(--eg-info-text)] ring-sky-600/20",
+  slate: "bg-[var(--eg-surface-3)] text-[var(--eg-text-muted)] ring-slate-500/20"
 };
 function badge(field, headerName, tones, extra = {}) {
   return {

@@ -3,7 +3,6 @@ import { api, type MasterRecord } from "../api";
 import type { CurrentUser } from "../auth";
 import { EnterpriseGrid, text, badge, category } from "../vendor/enterprise-grid";
 import "../vendor/enterprise-grid/enterprise-grid.css";
-import "../grid-dark.css";
 
 /** One field on a master form. */
 export interface Field {

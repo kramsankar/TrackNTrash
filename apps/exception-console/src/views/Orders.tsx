@@ -3,7 +3,6 @@ import { api, type OrderRow } from "../api";
 import type { CurrentUser } from "../auth";
 import { EnterpriseGrid, text, badge, category } from "../vendor/enterprise-grid";
 import "../vendor/enterprise-grid/enterprise-grid.css";
-import "../grid-dark.css";
 
 const STATE_COLORS: Record<string, string> = {
   Ordered: "slate", Picked: "blue", Staged: "indigo", Loaded: "amber",

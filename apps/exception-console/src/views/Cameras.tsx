@@ -3,7 +3,6 @@ import { api, type CameraRow, type SiteMapRow } from "../api";
 import type { CurrentUser } from "../auth";
 import { EnterpriseGrid, text, badge, category } from "../vendor/enterprise-grid";
 import "../vendor/enterprise-grid/enterprise-grid.css";
-import "../grid-dark.css";
 
 const STATUS_COLORS: Record<string, string> = {
   Active: "green", Offline: "red", Maintenance: "amber", Retired: "slate",
