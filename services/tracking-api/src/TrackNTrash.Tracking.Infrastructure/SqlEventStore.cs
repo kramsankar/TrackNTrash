@@ -167,4 +167,36 @@ SELECT @olId;";
         }
         return lineIds;
     }
+
+    public sealed record OrderLineRow(long OrderLineId, string OrderNumber, string StoreCode, string? ErpReference,
+        int LineNumber, string Gtin, decimal OrderedQty, int ExpectedCartonCount, string CurrentState,
+        int ReceivedCartons, DateTimeOffset CreatedUtc);
+
+    /// <summary>Lists order lines (newest first) with their current shipment state — for the console grid.</summary>
+    public async Task<IReadOnlyList<OrderLineRow>> ListAsync(int top = 500, CancellationToken ct = default)
+    {
+        await using var conn = new SqlConnection(_cs);
+        await conn.OpenAsync(ct);
+        const string sql = @"
+SELECT TOP (@top)
+    ol.OrderLineId, so.OrderNumber, s.StoreCode, so.ErpReference,
+    ol.LineNumber, ol.Gtin, ol.OrderedQty, ol.ExpectedCartonCount,
+    ISNULL(sls.CurrentState, 'Ordered') AS CurrentState, ISNULL(sls.ReceivedCartons, 0) AS ReceivedCartons,
+    so.CreatedUtc
+FROM ops.OrderLine ol
+JOIN ops.SalesOrder so ON so.SalesOrderId = ol.SalesOrderId
+JOIN ops.Store s ON s.StoreId = so.StoreId
+LEFT JOIN ops.ShipmentLineState sls ON sls.OrderLineId = ol.OrderLineId
+ORDER BY ol.OrderLineId DESC;";
+        await using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("@top", top);
+        var list = new List<OrderLineRow>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct))
+            list.Add(new OrderLineRow(
+                r.GetInt64(0), r.GetString(1), r.GetString(2), r.IsDBNull(3) ? null : r.GetString(3),
+                r.GetInt32(4), r.GetString(5), r.GetDecimal(6), r.GetInt32(7),
+                r.GetString(8), r.GetInt32(9), new DateTimeOffset(r.GetDateTime(10), TimeSpan.Zero)));
+        return list;
+    }
 }

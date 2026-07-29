@@ -109,6 +109,14 @@ app.MapPost("/orders", async (OrderDto dto, IServiceProvider sp, CancellationTok
 })
 .WithTags("Orders").WithName("CreateOrder");
 
+app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlOrderStore>();
+    if (store is null) return Results.Ok(Array.Empty<object>());   // in-memory mode has no order master
+    return Results.Ok(await store.ListAsync(500, ct));
+})
+.WithTags("Orders").WithName("ListOrders");
+
 // ---------- Ingestion ----------
 app.MapPost("/events/scan", async (ScanEventDto dto, IngestionService svc, CancellationToken ct) =>
 {

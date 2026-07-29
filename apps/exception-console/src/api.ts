@@ -56,6 +56,7 @@ export const api = {
 
   // ---- orders ----
   createOrder: (body: OrderReq, token?: string) => post<OrderResp>(`/orders`, body, token),
+  listOrders: (token?: string) => get<OrderRow[]>(`/orders`, token),
 
   // ---- events ----
   scan: (body: ScanReq, token?: string) => post<ScanResp>(`/events/scan`, body, token),
@@ -81,6 +82,7 @@ export const API_BASE = BASE;
 // ---- request/response shapes ----
 export interface OrderReq { orderNumber: string; storeCode: string; erpReference?: string; lines: { lineNumber: number; gtin: string; orderedQty: number; uom?: string; expectedCartonCount: number; erpLineReference?: string }[]; }
 export interface OrderResp { orderNumber: string; storeCode: string; orderLineIds: number[]; }
+export interface OrderRow { orderLineId: number; orderNumber: string; storeCode: string; erpReference?: string; lineNumber: number; gtin: string; orderedQty: number; expectedCartonCount: number; currentState: string; receivedCartons: number; createdUtc: string; }
 export interface ScanReq { clientEventId: string; deviceId: string; eventType: string; checkpoint?: string; orderLineId?: number; trayQr?: string; verdict?: string; }
 export interface ScanResp { accepted: boolean; duplicate: boolean; scanEventId?: number; newState?: string; transitionLegal: boolean; exceptions: { type: string }[]; }
 export interface LineState { orderLineId: number; currentState: string; previousState?: string; lastEventId?: number; pickedCartons: number; receivedCartons: number; stateEnteredUtc: string; }
