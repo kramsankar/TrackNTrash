@@ -68,6 +68,22 @@ public sealed record OrderLineDto
     public string? ErpLineReference { get; init; }
 }
 
+/// <summary>Username/password sign-in (POST /auth/login).</summary>
+public sealed record LoginDto
+{
+    public string Username { get; init; } = "";
+    public string Password { get; init; } = "";
+}
+
+/// <summary>Create/update a local user (POST /auth/users, guarded by the setup key).</summary>
+public sealed record UpsertUserDto
+{
+    public string Username { get; init; } = "";
+    public string DisplayName { get; init; } = "";
+    public string Password { get; init; } = "";
+    public string Roles { get; init; } = "Dispatcher";
+}
+
 /// <summary>Register N reusable trays for a site (POST /assets/register).</summary>
 public sealed record RegisterAssetsDto
 {

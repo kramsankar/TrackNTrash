@@ -1,16 +1,17 @@
 /**
- * Entra ID (Azure AD) auth config. Roles: Dispatcher / Warehouse Manager / Admin — defined as
- * app roles on the Entra app registration and surfaced in the token `roles` claim.
+ * Authentication for the console. Two sign-in methods, both supported:
  *
- * This module exposes a minimal shape so the app can run in dev without MSAL wired. In production,
- * install @azure/msal-browser + @azure/msal-react, acquire a token for the API scope, and pass a
- * tokenFactory to api/signalr. Gate the action buttons on the user's role claim.
+ *  1. Local username/password — POST /auth/login returns a JWT the API validates.
+ *     Suited to shared warehouse devices where interactive AAD sign-in is awkward.
+ *  2. Microsoft Entra ID (Azure AD) — MSAL redirect flow; the API validates the AAD token.
+ *     Enabled when the deployment reports `entra: true` from /auth/config.
+ *
+ * The API advertises which methods are on via GET /auth/config, so the login screen
+ * only offers what the deployment actually supports.
  */
-export const authConfig = {
-  clientId: import.meta.env.VITE_ENTRA_CLIENT_ID ?? "<app-registration-client-id>",
-  authority: `https://login.microsoftonline.com/${import.meta.env.VITE_ENTRA_TENANT_ID ?? "<tenant-id>"}`,
-  apiScope: import.meta.env.VITE_API_SCOPE ?? "api://tracktrash-tracking/.default",
-};
+
+const BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:5090";
+const STORAGE_KEY = "tnt.session";
 
 export type Role = "Dispatcher" | "WarehouseManager" | "Admin";
 
@@ -21,19 +22,81 @@ export interface CurrentUser {
   getToken: () => string | undefined;
 }
 
-/** Dev stub. Replace with MSAL-derived user in production. */
-export function useDevUser(): CurrentUser {
-  return {
-    name: "Dev User",
-    upn: "dev@a-squaretechnologies.com",
-    roles: ["Admin"],
-    getToken: () => undefined,
+export interface Session {
+  token: string;
+  name: string;
+  username: string;
+  roles: Role[];
+  expiresUtc: string;
+  method: "local" | "entra";
+}
+
+export interface AuthConfig {
+  local: boolean;
+  entra: boolean;
+  entraTenantId?: string | null;
+  entraClientId?: string | null;
+}
+
+export async function fetchAuthConfig(): Promise<AuthConfig> {
+  try {
+    const r = await fetch(`${BASE}/auth/config`);
+    if (!r.ok) throw new Error();
+    return (await r.json()) as AuthConfig;
+  } catch {
+    return { local: false, entra: false };   // API unreachable / auth disabled
+  }
+}
+
+export async function loginLocal(username: string, password: string): Promise<Session> {
+  const r = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error((body as any).error ?? "Sign-in failed. Check your username and password.");
+  }
+  const d = await r.json();
+  const session: Session = {
+    token: d.token, name: d.name, username: d.username,
+    roles: d.roles as Role[], expiresUtc: d.expiresUtc, method: "local",
   };
+  saveSession(session);
+  return session;
+}
+
+export function saveSession(s: Session) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+export function loadSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as Session;
+    if (new Date(s.expiresUtc).getTime() < Date.now()) { clearSession(); return null; }
+    return s;
+  } catch { return null; }
+}
+
+export function clearSession() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+export function userFromSession(s: Session): CurrentUser {
+  return { name: s.name, upn: s.username, roles: s.roles, getToken: () => s.token };
+}
+
+/** Used when the deployment has no auth configured (open dev API). */
+export function anonymousUser(): CurrentUser {
+  return { name: "Dev User", upn: "dev@a-squaretechnologies.com", roles: ["Admin"], getToken: () => undefined };
 }
 
 export function canResolve(user: CurrentUser): boolean {
   return user.roles.includes("Admin") || user.roles.includes("WarehouseManager");
 }
 export function canEscalate(user: CurrentUser): boolean {
-  return user.roles.length > 0; // any authenticated role can escalate
+  return user.roles.length > 0;
 }

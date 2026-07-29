@@ -9,8 +9,12 @@ using TrackNTrash.Tracking.Core.Trips;
 using TrackNTrash.Tracking.Core.Receiving;
 using TrackNTrash.Tracking.Api.Console;
 
+using System.Text;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.IdentityModel.Tokens;
+using TrackNTrash.Tracking.Api.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +40,7 @@ if (useSql)
     builder.Services.AddSingleton<IManifestStore>(new SqlManifestStore(sqlCs!));
     builder.Services.AddSingleton(new SqlOrderStore(sqlCs!));
     builder.Services.AddSingleton(new SqlAssetStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlUserStore(sqlCs!));
 }
 else
 {
@@ -43,6 +48,58 @@ else
     builder.Services.AddSingleton<IShipmentStateStore, InMemoryShipmentStateStore>();
     builder.Services.AddSingleton<IExceptionStore, InMemoryExceptionStore>();
     builder.Services.AddSingleton<IManifestStore, InMemoryManifestStore>();
+}
+
+// ---- Authentication: local JWT (username/password) and/or Entra ID ----
+var authOptions = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new AuthOptions();
+builder.Services.AddSingleton(authOptions);
+builder.Services.AddSingleton<TokenService>();
+
+if (authOptions.LocalEnabled || authOptions.EntraEnabled)
+{
+    var auth = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
+
+    if (authOptions.LocalEnabled)
+        auth.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, o =>
+        {
+            o.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true, ValidIssuer = authOptions.Issuer,
+                ValidateAudience = true, ValidAudience = authOptions.Audience,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authOptions.SigningKey)),
+                ValidateLifetime = true, ClockSkew = TimeSpan.FromMinutes(2),
+            };
+            // SignalR sends the token via query string on the websocket handshake.
+            o.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = ctx =>
+                {
+                    var accessToken = ctx.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(accessToken) && ctx.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                        ctx.Token = accessToken;
+                    return Task.CompletedTask;
+                }
+            };
+        });
+
+    if (authOptions.EntraEnabled)
+        auth.AddJwtBearer("Entra", o =>
+        {
+            o.Authority = $"https://login.microsoftonline.com/{authOptions.EntraTenantId}/v2.0";
+            o.Audience = authOptions.EntraAudience;
+            o.TokenValidationParameters = new TokenValidationParameters { ValidateLifetime = true };
+        });
+
+    builder.Services.AddAuthorization(o =>
+    {
+        // Accept either scheme wherever [Authorize]/RequireAuthorization is used.
+        var schemes = new List<string>();
+        if (authOptions.LocalEnabled) schemes.Add(JwtBearerDefaults.AuthenticationScheme);
+        if (authOptions.EntraEnabled) schemes.Add("Entra");
+        o.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder(schemes.ToArray())
+            .RequireAuthenticatedUser().Build();
+    });
 }
 
 // ---- Console + SignalR (Module 12) ----
@@ -91,8 +148,53 @@ builder.Services.AddCors(o => o.AddPolicy("console", p => p
 
 var app = builder.Build();
 app.UseCors("console");
+if (authOptions.LocalEnabled || authOptions.EntraEnabled)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+}
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// ---------- Auth ----------
+// What sign-in methods this deployment offers (drives the console's login screen).
+app.MapGet("/auth/config", () => Results.Ok(new
+{
+    local = authOptions.LocalEnabled,
+    entra = authOptions.EntraEnabled,
+    entraTenantId = authOptions.EntraEnabled ? authOptions.EntraTenantId : null,
+    entraClientId = authOptions.EntraEnabled ? authOptions.EntraAudience : null,
+})).WithTags("Auth").WithName("AuthConfig");
+
+app.MapPost("/auth/login", async (LoginDto dto, IServiceProvider sp, TokenService tokens, CancellationToken ct) =>
+{
+    if (!authOptions.LocalEnabled) return Results.Problem("Local sign-in is not enabled.", statusCode: 501);
+    var users = sp.GetService<SqlUserStore>();
+    if (users is null) return Results.Problem("Local sign-in requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+        return Results.BadRequest(new { error = "username and password are required." });
+
+    var user = await users.AuthenticateAsync(dto.Username.Trim(), dto.Password, ct);
+    if (user is null) return Results.Json(new { error = "Incorrect username or password." }, statusCode: 401);
+
+    var (token, expires) = tokens.Issue(user);
+    return Results.Ok(new { token, expiresUtc = expires, name = user.DisplayName, username = user.Username, roles = user.Roles });
+}).WithTags("Auth").WithName("Login");
+
+// First-run/admin seeding of local users. Requires the configured setup key.
+app.MapPost("/auth/users", async (UpsertUserDto dto, HttpRequest req, IServiceProvider sp, IConfiguration cfg, CancellationToken ct) =>
+{
+    var setupKey = cfg["Auth:SetupKey"];
+    if (string.IsNullOrWhiteSpace(setupKey) || req.Headers["x-setup-key"] != setupKey)
+        return Results.Json(new { error = "Invalid setup key." }, statusCode: 403);
+    var users = sp.GetService<SqlUserStore>();
+    if (users is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
+        return Results.BadRequest(new { error = "username and password are required." });
+    await users.UpsertAsync(dto.Username.Trim(), string.IsNullOrWhiteSpace(dto.DisplayName) ? dto.Username : dto.DisplayName,
+        dto.Password, string.IsNullOrWhiteSpace(dto.Roles) ? "Dispatcher" : dto.Roles, ct);
+    return Results.Ok(new { dto.Username, seeded = true });
+}).WithTags("Auth").WithName("UpsertUser");
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "TrackNTrash.Tracking.Api" }))
    .WithTags("System");
@@ -203,7 +305,7 @@ app.MapGet("/exceptions/open", async (IExceptionStore store, CancellationToken c
 // ---------- Manual sweep trigger (the Functions timer calls SweepService directly) ----------
 app.MapPost("/admin/sweep", async (SweepService sweep, CancellationToken ct) =>
     Results.Ok(await sweep.RunAsync(DateTimeOffset.UtcNow, ct)))
-.WithTags("Admin").WithName("RunSweep");
+.WithTags("Admin").WithName("RunSweep").RequireAuthorizationWhenConfigured(authOptions);
 
 // ---------- Trips (Module 7) ----------
 app.MapPost("/trips", async (CreateTripDto dto, TripService svc, CancellationToken ct) =>
@@ -314,11 +416,11 @@ app.MapPost("/receiving/return-tray", async (ReturnTrayDto dto, ReceivingService
 .WithTags("Receiving").WithName("ReturnTray");
 
 // ---------- Exception Console (Module 12) ----------
-app.MapHub<ExceptionsHub>("/hubs/exceptions");
+app.MapHub<ExceptionsHub>("/hubs/exceptions").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/console/exceptions", (string? checkpoint, string? severity, string? status, string? route, ConsoleExceptionStore store) =>
     Results.Ok(store.List(checkpoint, severity, status, route)))
-.WithTags("Console").WithName("ListConsoleExceptions");
+.WithTags("Console").WithName("ListConsoleExceptions").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapGet("/console/exceptions/{id:long}", async (long id, ConsoleExceptionStore store, IEventStore events, CancellationToken ct) =>
 {
@@ -332,16 +434,16 @@ app.MapGet("/console/exceptions/{id:long}", async (long id, ConsoleExceptionStor
             .Cast<object>().ToArray();
     return Results.Ok(new { exception = ex, timeline });
 })
-.WithTags("Console").WithName("GetConsoleException");
+.WithTags("Console").WithName("GetConsoleException").RequireAuthorizationWhenConfigured(authOptions);
 
 // One-click actions. In prod these require role auth (Dispatcher / Warehouse Manager / Admin).
 app.MapPost("/console/exceptions/{id:long}/acknowledge", async (long id, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub) =>
     await ApplyAction(id, "acknowledge", dto, store, hub))
-.WithTags("Console");
+.WithTags("Console").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/console/exceptions/{id:long}/resolve", async (long id, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub) =>
     await ApplyAction(id, "resolve", dto, store, hub))
-.WithTags("Console");
+.WithTags("Console").RequireAuthorizationWhenConfigured(authOptions);
 
 app.MapPost("/console/exceptions/{id:long}/escalate", async (long id, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub) =>
 {
@@ -349,7 +451,7 @@ app.MapPost("/console/exceptions/{id:long}/escalate", async (long id, ActionDto 
     // Escalate also emits a Teams post payload (posted by a Service Bus subscriber in prod).
     return result;
 })
-.WithTags("Console");
+.WithTags("Console").RequireAuthorizationWhenConfigured(authOptions);
 
 static async Task<IResult> ApplyAction(long id, string action, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub)
 {
