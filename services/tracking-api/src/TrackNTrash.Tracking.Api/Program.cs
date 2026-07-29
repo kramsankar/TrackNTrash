@@ -41,6 +41,8 @@ if (useSql)
     builder.Services.AddSingleton(new SqlOrderStore(sqlCs!));
     builder.Services.AddSingleton(new SqlAssetStore(sqlCs!));
     builder.Services.AddSingleton(new SqlUserStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlItemStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlCameraStore(sqlCs!));
 }
 else
 {
@@ -219,6 +221,135 @@ app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
     return Results.Ok(await store.ListAsync(500, ct));
 })
 .WithTags("Orders").WithName("ListOrders");
+
+// ---------- Item-level tracking (units inside a carton) ----------
+app.MapGet("/cartons", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlItemStore>();
+    return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListCartonsAsync(500, ct));
+}).WithTags("Items").WithName("ListCartons");
+
+app.MapPost("/cartons", async (CartonSetupDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlItemStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.Gtin) || string.IsNullOrWhiteSpace(dto.Serial))
+        return Results.BadRequest(new { error = "gtin and serial are required." });
+
+    try
+    {
+        var cartonId = await store.CreateCartonAsync(dto.OrderLineId, dto.Gtin, dto.Serial,
+            dto.ExpectedItemCount, dto.ItemIdentification, ct);
+        int added = 0;
+        if (dto.Items.Count > 0)
+            added = await store.AddItemsAsync(cartonId, dto.Items.Select(i => (i.Barcode, i.Gtin, i.Description)), ct);
+        return Results.Ok(new { cartonId, dto.Serial, dto.ExpectedItemCount, dto.ItemIdentification, itemsRegistered = added });
+    }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 547)   // check/FK violation
+    {
+        return Results.BadRequest(new { error = "Carton rejected by a data rule. Serials allow letters, digits and - . / _ (max 20); the order line must exist.", detail = ex.Message });
+    }
+}).WithTags("Items").WithName("CreateCarton");
+
+app.MapGet("/items/counts", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlItemStore>();
+    return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListCountsAsync(500, ct));
+}).WithTags("Items").WithName("ListItemCounts");
+
+// The reconciliation entry point: barcode scans and/or a camera's visual count.
+app.MapPost("/items/count", async (ItemCountDto dto, IServiceProvider sp, IngestionService ingestion,
+    IExceptionStore exceptions, INotificationPublisher notifier, ExceptionSeverityMatrix severity, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlItemStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (dto.CartonId <= 0) return Results.BadRequest(new { error = "cartonId is required." });
+
+    // Record the observation event first so the count can reference it.
+    var evt = await ingestion.IngestAsync(new ScanEventInput
+    {
+        ClientEventId = $"itemcount:{dto.CartonId}:{Guid.NewGuid():N}",
+        EventType = dto.VisionCount.HasValue ? "ItemVisionCount" : "ItemScan",
+        Checkpoint = dto.Checkpoint,
+        DeviceId = dto.DeviceId,
+        CartonId = dto.CartonId,
+        MetaJson = dto.FrameBlobUri is null ? null : $"{{\"frameRef\":\"{dto.FrameBlobUri}\"}}",
+    }, ct);
+
+    var result = await store.RecordCountAsync(dto.CartonId, dto.Checkpoint, dto.ScannedBarcodes,
+        dto.VisionCount, dto.CameraId, dto.FrameBlobUri, dto.Confidence, evt.ScanEventId, ct);
+
+    // A mismatch at item level is an exception, same as at carton level.
+    if (result.Verdict is "SHORT" or "OVER")
+    {
+        var type = result.Verdict == "SHORT" ? ExceptionType.MissingCarton : ExceptionType.UnknownCarton;
+        var ex = new TrackException
+        {
+            Type = type,
+            Severity = severity.For(type),
+            Checkpoint = dto.Checkpoint,
+            CartonId = dto.CartonId,
+            TriggeringEventId = evt.ScanEventId,
+            Detail = $"Item count {result.Verdict} on carton {dto.CartonId}: {result.Detail}",
+            FrameBlobUri = dto.FrameBlobUri,
+        };
+        await exceptions.AddAsync(ex, ct);
+        // Publish too, so it reaches the ops console live (same path the ingestion pipeline uses).
+        await notifier.PublishAsync(ex, ct);
+    }
+
+    return Results.Ok(result);
+}).WithTags("Items").WithName("RecordItemCount");
+
+// ---------- Cameras & site mapping ----------
+app.MapGet("/cameras", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlCameraStore>();
+    return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListAsync(ct));
+}).WithTags("Cameras").WithName("ListCameras");
+
+app.MapPost("/cameras", async (CameraDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlCameraStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.CameraCode) || string.IsNullOrWhiteSpace(dto.SiteCode))
+        return Results.BadRequest(new { error = "cameraCode and siteCode are required." });
+    var id = await store.UpsertAsync(dto.CameraCode, string.IsNullOrWhiteSpace(dto.Name) ? dto.CameraCode : dto.Name,
+        dto.CameraKind, dto.SiteCode, dto.Zone, dto.Station, dto.Checkpoint, dto.RtspUrl, dto.Purpose, dto.Status, ct);
+    return Results.Ok(new { cameraId = id, dto.CameraCode });
+}).WithTags("Cameras").WithName("UpsertCamera");
+
+app.MapPost("/cameras/{cameraId:int}/placement", async (int cameraId, PlacementDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlCameraStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    await store.PlaceAsync(cameraId, dto.SiteMapId, dto.X, dto.Y, dto.HeadingDeg, ct);
+    return Results.Ok(new { cameraId, dto.SiteMapId, dto.X, dto.Y });
+}).WithTags("Cameras").WithName("PlaceCamera");
+
+app.MapPost("/cameras/{cameraCode}/heartbeat", async (string cameraCode, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlCameraStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    await store.HeartbeatAsync(cameraCode, ct);
+    return Results.Ok(new { cameraCode, seen = DateTimeOffset.UtcNow });
+}).WithTags("Cameras").WithName("CameraHeartbeat");
+
+app.MapGet("/sitemaps", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlCameraStore>();
+    return store is null ? Results.Ok(Array.Empty<object>()) : Results.Ok(await store.ListMapsAsync(ct));
+}).WithTags("Cameras").WithName("ListSiteMaps");
+
+app.MapPost("/sitemaps", async (SiteMapDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlCameraStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.SiteCode)) return Results.BadRequest(new { error = "siteCode is required." });
+    var id = await store.UpsertMapAsync(dto.SiteCode, string.IsNullOrWhiteSpace(dto.Name) ? dto.SiteCode : dto.Name,
+        dto.ImageUri, dto.Width, dto.Height, ct);
+    return Results.Ok(new { siteMapId = id, dto.SiteCode });
+}).WithTags("Cameras").WithName("UpsertSiteMap");
 
 // ---------- Asset master (reusable trays) ----------
 app.MapGet("/assets", async (IServiceProvider sp, CancellationToken ct) =>

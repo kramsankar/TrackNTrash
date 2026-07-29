@@ -194,6 +194,37 @@ td.detail { color: var(--muted); max-width: 340px; overflow: hidden; text-overfl
 .badge.sev-high { background: var(--high); } .badge.sev-medium { background: var(--med); } .badge.sev-low { background: var(--low); }
 .qr-card { display: flex; flex-direction: column; align-items: flex-start; }
 
+/* ============================ FLOOR PLAN ============================ */
+.inline-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.floorplan {
+  position: relative; width: 100%; border: 1px solid var(--line-2); border-radius: 12px;
+  background-color: var(--inset); background-size: cover; background-position: center;
+  background-image:
+    linear-gradient(rgba(91,140,255,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91,140,255,.07) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px; overflow: hidden; user-select: none;
+}
+.floorplan.placing { cursor: crosshair; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,140,255,.18); }
+.floorplan-hint {
+  position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 13px; pointer-events: none;
+}
+.cam-pin {
+  position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center;
+  gap: 2px; background: none; border: 0; padding: 0; cursor: grab; min-height: 0;
+}
+.cam-pin:hover { transform: translate(-50%, -50%) scale(1.08); }
+.cam-pin.dragging { cursor: grabbing; opacity: .7; }
+.cam-dot {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 15px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 3px 10px rgba(0,0,0,.45), 0 0 0 3px rgba(91,140,255,.25);
+}
+.cam-pin.down .cam-dot { background: var(--bad); box-shadow: 0 3px 10px rgba(0,0,0,.45), 0 0 0 3px rgba(248,113,113,.25); }
+.cam-label {
+  font-size: 10px; font-weight: 700; color: var(--text); background: rgba(11,16,32,.85);
+  padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+}
+
 /* ============================ EXCEPTIONS ============================ */
 .ex-layout { display: flex; flex-direction: column; height: 100%; }
 .filters { display: flex; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }

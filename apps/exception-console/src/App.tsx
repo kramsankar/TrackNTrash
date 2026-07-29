@@ -13,9 +13,11 @@ import { Trips } from "./views/Trips";
 import { Manifests } from "./views/Manifests";
 import { LineLookup } from "./views/LineLookup";
 import { Assets } from "./views/Assets";
+import { Items } from "./views/Items";
+import { Cameras } from "./views/Cameras";
 import { ExceptionsView } from "./views/ExceptionsView";
 
-type View = "dashboard" | "orders" | "trips" | "manifests" | "assets" | "lookup" | "exceptions";
+type View = "dashboard" | "orders" | "trips" | "manifests" | "assets" | "items" | "cameras" | "lookup" | "exceptions";
 
 const MENU: { id: View; label: string; icon: string; group: string }[] = [
   { id: "dashboard", label: "Dashboard", icon: "▦", group: "Overview" },
@@ -23,6 +25,8 @@ const MENU: { id: View; label: string; icon: string; group: string }[] = [
   { id: "trips", label: "Trips & Loading", icon: "🚚", group: "Operations" },
   { id: "manifests", label: "Manifests (ASN)", icon: "📦", group: "Operations" },
   { id: "assets", label: "Asset Master", icon: "🗄️", group: "Operations" },
+  { id: "items", label: "Item Counting", icon: "🔢", group: "Inspection" },
+  { id: "cameras", label: "Cameras & Map", icon: "📷", group: "Inspection" },
   { id: "lookup", label: "Line Lookup", icon: "🔎", group: "Operations" },
   { id: "exceptions", label: "Exceptions", icon: "⚠️", group: "Monitoring" },
 ];
@@ -106,6 +110,8 @@ export default function App() {
         {view === "trips" && <Trips user={user} />}
         {view === "manifests" && <Manifests user={user} />}
         {view === "assets" && <Assets user={user} />}
+        {view === "items" && <Items user={user} />}
+        {view === "cameras" && <Cameras user={user} />}
         {view === "lookup" && <LineLookup user={user} />}
         {view === "exceptions" && <ExceptionsView items={items} user={user} refresh={refresh} />}
       </main>

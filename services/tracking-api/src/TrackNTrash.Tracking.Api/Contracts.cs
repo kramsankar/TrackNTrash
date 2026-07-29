@@ -68,6 +68,80 @@ public sealed record OrderLineDto
     public string? ErpLineReference { get; init; }
 }
 
+// ---------- Item-level tracking ----------
+
+/// <summary>Create/define a carton and how its units are identified (POST /cartons).</summary>
+public sealed record CartonSetupDto
+{
+    public long OrderLineId { get; init; } = 1;
+    public string Gtin { get; init; } = "";
+    public string Serial { get; init; } = "";
+    public int ExpectedItemCount { get; init; }
+    /// <summary>Barcoded | Visual | Mixed</summary>
+    public string ItemIdentification { get; init; } = "Visual";
+    /// <summary>Optional barcoded units to register up front.</summary>
+    public List<ItemDto> Items { get; init; } = new();
+}
+
+public sealed record ItemDto
+{
+    public string Barcode { get; init; } = "";
+    public string? Gtin { get; init; }
+    public string? Description { get; init; }
+}
+
+/// <summary>Record an item-level observation of a carton (POST /items/count).</summary>
+public sealed record ItemCountDto
+{
+    public long CartonId { get; init; }
+    /// <summary>PickTrayBuild | DispatchDock | StoreReceive</summary>
+    public string? Checkpoint { get; init; }
+    /// <summary>Barcodes actually scanned (empty for purely visual counting).</summary>
+    public List<string> ScannedBarcodes { get; init; } = new();
+    /// <summary>Units counted by a camera (null when no camera observed).</summary>
+    public int? VisionCount { get; init; }
+    public int? CameraId { get; init; }
+    public string? FrameBlobUri { get; init; }
+    public decimal? Confidence { get; init; }
+    public string DeviceId { get; init; } = "console";
+}
+
+// ---------- Cameras ----------
+
+public sealed record CameraDto
+{
+    public string CameraCode { get; init; } = "";
+    public string Name { get; init; } = "";
+    /// <summary>Fixed | Handheld</summary>
+    public string CameraKind { get; init; } = "Fixed";
+    public string SiteCode { get; init; } = "";
+    public string? Zone { get; init; }
+    public string? Station { get; init; }
+    public string? Checkpoint { get; init; }
+    public string? RtspUrl { get; init; }
+    /// <summary>ItemCount | CartonVerify | Both</summary>
+    public string Purpose { get; init; } = "ItemCount";
+    public string Status { get; init; } = "Active";
+}
+
+/// <summary>Pin a camera onto a site map (POST /cameras/{id}/placement).</summary>
+public sealed record PlacementDto
+{
+    public int SiteMapId { get; init; }
+    public decimal X { get; init; }
+    public decimal Y { get; init; }
+    public int? HeadingDeg { get; init; }
+}
+
+public sealed record SiteMapDto
+{
+    public string SiteCode { get; init; } = "";
+    public string Name { get; init; } = "";
+    public string? ImageUri { get; init; }
+    public int Width { get; init; } = 1000;
+    public int Height { get; init; } = 600;
+}
+
 /// <summary>Username/password sign-in (POST /auth/login).</summary>
 public sealed record LoginDto
 {

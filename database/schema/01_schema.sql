@@ -183,7 +183,8 @@ CREATE TABLE ops.Carton
     RowVer           ROWVERSION    NOT NULL,
     CONSTRAINT UQ_Carton_GtinSerial UNIQUE (Gtin, Serial),
     CONSTRAINT CK_Carton_Gtin   CHECK (Gtin NOT LIKE '%[^0-9]%'),
-    CONSTRAINT CK_Carton_Serial CHECK (Serial NOT LIKE '%[^0-9A-Za-z]%' AND LEN(Serial) BETWEEN 1 AND 20),
+    -- GS1 AI (21) uses character set 82; allow the practical subset (alphanumerics + - . / _).
+    CONSTRAINT CK_Carton_Serial CHECK (Serial NOT LIKE '%[^0-9A-Za-z._/-]%' AND LEN(Serial) BETWEEN 1 AND 20),
     CONSTRAINT CK_Carton_Sscc   CHECK (Sscc IS NULL OR (Sscc NOT LIKE '%[^0-9]%' AND LEN(Sscc) = 18))
 );
 GO

@@ -77,6 +77,19 @@ export const api = {
   assetSummary: (token?: string) => get<AssetSummary>(`/assets/summary`, token),
   registerAssets: (siteCode: string, count: number, token?: string) => post<{ registered: number; trayQrs: string[] }>(`/assets/register`, { siteCode, count }, token),
 
+  // ---- items ----
+  listCartons: (token?: string) => get<CartonRow[]>(`/cartons`, token),
+  createCarton: (body: CartonSetupReq, token?: string) => post<any>(`/cartons`, body, token),
+  listItemCounts: (token?: string) => get<ItemCountRow[]>(`/items/counts`, token),
+  recordItemCount: (body: ItemCountReq, token?: string) => post<CountResult>(`/items/count`, body, token),
+
+  // ---- cameras ----
+  listCameras: (token?: string) => get<CameraRow[]>(`/cameras`, token),
+  upsertCamera: (body: CameraReq, token?: string) => post<{ cameraId: number }>(`/cameras`, body, token),
+  placeCamera: (cameraId: number, body: PlacementReq, token?: string) => post<any>(`/cameras/${cameraId}/placement`, body, token),
+  listSiteMaps: (token?: string) => get<SiteMapRow[]>(`/sitemaps`, token),
+  upsertSiteMap: (body: SiteMapReq, token?: string) => post<{ siteMapId: number }>(`/sitemaps`, body, token),
+
   // ---- admin ----
   runSweep: (token?: string) => post<any>(`/admin/sweep`, {}, token),
   health: () => get<{ status: string; service: string }>(`/health`),
@@ -97,3 +110,17 @@ export interface ManifestReq { trayQr: string; tripId?: number; expectedCartonCo
 export interface ManifestRow { trayQr: string; tripId?: number; expectedCartonCount: number; expectedCartonPayloads: string[]; updatedUtc: string; }
 export interface AssetRow { trayId: number; trayQr: string; siteCode: string; trayStatus: string; currentCustodianType: string; currentCustodianRef?: string; lastSeenUtc?: string; createdUtc: string; }
 export interface AssetSummary { total: number; available: number; inUse: number; inTransit: number; atStore: number; lost: number; }
+
+// ---- items ----
+export interface CartonRow { cartonId: number; serial: string; gtin: string; expectedItemCount: number; itemIdentification: string; registeredItems: number; status: string; }
+export interface CartonSetupReq { orderLineId: number; gtin: string; serial: string; expectedItemCount: number; itemIdentification: string; items?: { barcode: string; gtin?: string; description?: string }[]; }
+export interface ItemCountRow { itemCountId: number; cartonId: number; cartonSerial: string; checkpoint?: string; expectedCount: number; scannedCount: number; visionCount?: number; cameraCode?: string; verdict: string; confidence?: number; observedUtc: string; }
+export interface ItemCountReq { cartonId: number; checkpoint?: string; scannedBarcodes: string[]; visionCount?: number | null; cameraId?: number | null; frameBlobUri?: string; confidence?: number; deviceId?: string; }
+export interface CountResult { itemCountId: number; expected: number; scanned: number; vision?: number; verdict: string; detail: string; }
+
+// ---- cameras ----
+export interface CameraRow { cameraId: number; cameraCode: string; name: string; cameraKind: string; siteCode: string; zone?: string; station?: string; checkpoint?: string; rtspUrl?: string; purpose: string; status: string; lastSeenUtc?: string; x?: number; y?: number; headingDeg?: number; siteMapId?: number; }
+export interface CameraReq { cameraCode: string; name: string; cameraKind: string; siteCode: string; zone?: string; station?: string; checkpoint?: string; rtspUrl?: string; purpose: string; status: string; }
+export interface PlacementReq { siteMapId: number; x: number; y: number; headingDeg?: number; }
+export interface SiteMapRow { siteMapId: number; siteCode: string; name: string; imageUri?: string; width: number; height: number; }
+export interface SiteMapReq { siteCode: string; name: string; imageUri?: string; width?: number; height?: number; }
