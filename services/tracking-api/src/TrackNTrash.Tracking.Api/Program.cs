@@ -110,7 +110,10 @@ if (authOptions.LocalEnabled || authOptions.EntraEnabled)
 
 // ---- Console + SignalR (Module 12) ----
 builder.Services.AddSignalR();
-builder.Services.AddSingleton<ConsoleExceptionStore>();
+// The console used to read a private in-memory list, so a restart showed an empty board
+// while ops.Exception still held every unactioned row.
+if (useSql) builder.Services.AddSingleton<IConsoleExceptionStore>(new SqlConsoleExceptionStore(sqlCs!));
+else builder.Services.AddSingleton<IConsoleExceptionStore, InMemoryConsoleExceptionStore>();
 
 // ---- Notifications: Service Bus when configured, else logging; wrapped by the SignalR relay ----
 var sbCs = builder.Configuration["ServiceBus:ConnectionString"];
@@ -122,7 +125,7 @@ INotificationPublisher innerPublisher = !string.IsNullOrWhiteSpace(sbCs)
 builder.Services.AddSingleton(innerPublisher);
 builder.Services.AddSingleton<INotificationPublisher>(sp => new SignalRExceptionRelay(
     innerPublisher,
-    sp.GetRequiredService<ConsoleExceptionStore>(),
+    sp.GetRequiredService<IConsoleExceptionStore>(),
     sp.GetRequiredService<Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub>>()));
 
 // ---- Exception rules (register concrete rules; add more by adding a line) ----
@@ -141,7 +144,10 @@ else builder.Services.AddSingleton<ITripStore, InMemoryTripStore>();
 builder.Services.AddSingleton<TripService>();
 
 // ---- Receiving (Module 8) ----
-builder.Services.AddSingleton<IAsnStore, InMemoryAsnStore>();
+// ASNs in memory meant a recycle stranded an inbound tray at the store door with no
+// expected-carton list, so every scan read as an over-scan.
+if (useSql) builder.Services.AddSingleton<IAsnStore>(new SqlAsnStore(sqlCs!));
+else builder.Services.AddSingleton<IAsnStore, InMemoryAsnStore>();
 builder.Services.AddSingleton<ReceivingService>();
 // Receiving sessions are per-tray/store; held server-side keyed by a session id for the demo API.
 builder.Services.AddSingleton<ReceivingSessionCache>();
@@ -664,13 +670,13 @@ app.MapPost("/receiving/return-tray", async (ReturnTrayDto dto, ReceivingService
 // ---------- Exception Console (Module 12) ----------
 app.MapHub<ExceptionsHub>("/hubs/exceptions").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapGet("/console/exceptions", (string? checkpoint, string? severity, string? status, string? route, ConsoleExceptionStore store) =>
-    Results.Ok(store.List(checkpoint, severity, status, route)))
+app.MapGet("/console/exceptions", async (string? checkpoint, string? severity, string? status, string? route, IConsoleExceptionStore store, CancellationToken ct) =>
+    Results.Ok(await store.ListAsync(checkpoint, severity, status, route, ct)))
 .WithTags("Console").WithName("ListConsoleExceptions").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapGet("/console/exceptions/{id:long}", async (long id, ConsoleExceptionStore store, IEventStore events, CancellationToken ct) =>
+app.MapGet("/console/exceptions/{id:long}", async (long id, IConsoleExceptionStore store, IEventStore events, CancellationToken ct) =>
 {
-    var ex = store.Get(id);
+    var ex = await store.GetAsync(id, ct);
     if (ex is null) return Results.NotFound();
     // Attach the affected order line's event timeline.
     var timeline = ex.OrderLineId is null
@@ -683,29 +689,29 @@ app.MapGet("/console/exceptions/{id:long}", async (long id, ConsoleExceptionStor
 .WithTags("Console").WithName("GetConsoleException").RequireAuthorizationWhenConfigured(authOptions);
 
 // One-click actions. In prod these require role auth (Dispatcher / Warehouse Manager / Admin).
-app.MapPost("/console/exceptions/{id:long}/acknowledge", async (long id, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub) =>
-    await ApplyAction(id, "acknowledge", dto, store, hub))
+app.MapPost("/console/exceptions/{id:long}/acknowledge", async (long id, ActionDto dto, IConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub, CancellationToken ct) =>
+    await ApplyAction(id, "acknowledge", dto, store, hub, ct))
 .WithTags("Console").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapPost("/console/exceptions/{id:long}/resolve", async (long id, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub) =>
-    await ApplyAction(id, "resolve", dto, store, hub))
+app.MapPost("/console/exceptions/{id:long}/resolve", async (long id, ActionDto dto, IConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub, CancellationToken ct) =>
+    await ApplyAction(id, "resolve", dto, store, hub, ct))
 .WithTags("Console").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapPost("/console/exceptions/{id:long}/escalate", async (long id, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub) =>
+app.MapPost("/console/exceptions/{id:long}/escalate", async (long id, ActionDto dto, IConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub, CancellationToken ct) =>
 {
-    var result = await ApplyAction(id, "escalate", dto, store, hub);
+    var result = await ApplyAction(id, "escalate", dto, store, hub, ct);
     // Escalate also emits a Teams post payload (posted by a Service Bus subscriber in prod).
     return result;
 })
 .WithTags("Console").RequireAuthorizationWhenConfigured(authOptions);
 
-static async Task<IResult> ApplyAction(long id, string action, ActionDto dto, ConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub)
+static async Task<IResult> ApplyAction(long id, string action, ActionDto dto, IConsoleExceptionStore store, Microsoft.AspNetCore.SignalR.IHubContext<ExceptionsHub> hub, CancellationToken ct)
 {
     if (string.IsNullOrWhiteSpace(dto.User))
         return Results.BadRequest(new { error = "user is required for audit." });
-    if (!store.Apply(id, action, dto.User, dto.Note ?? dto.ReasonCode, out var updated))
-        return Results.NotFound();
-    await hub.Clients.All.SendAsync("exceptionUpdated", updated);
+    var updated = await store.ApplyAsync(id, action, dto.User, dto.Note ?? dto.ReasonCode, ct);
+    if (updated is null) return Results.NotFound();
+    await hub.Clients.All.SendAsync("exceptionUpdated", updated, ct);
     return Results.Ok(updated);
 }
 

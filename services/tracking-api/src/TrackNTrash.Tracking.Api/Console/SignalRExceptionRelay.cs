@@ -11,10 +11,10 @@ namespace TrackNTrash.Tracking.Api.Console;
 public sealed class SignalRExceptionRelay : INotificationPublisher
 {
     private readonly INotificationPublisher _inner;
-    private readonly ConsoleExceptionStore _store;
+    private readonly IConsoleExceptionStore _store;
     private readonly IHubContext<ExceptionsHub> _hub;
 
-    public SignalRExceptionRelay(INotificationPublisher inner, ConsoleExceptionStore store, IHubContext<ExceptionsHub> hub)
+    public SignalRExceptionRelay(INotificationPublisher inner, IConsoleExceptionStore store, IHubContext<ExceptionsHub> hub)
     {
         _inner = inner;
         _store = store;
@@ -24,7 +24,7 @@ public sealed class SignalRExceptionRelay : INotificationPublisher
     public async Task PublishAsync(TrackException exception, CancellationToken ct = default)
     {
         await _inner.PublishAsync(exception, ct);
-        var record = _store.Add(exception);
+        var record = await _store.AddAsync(exception, ct);
         await _hub.Clients.All.SendAsync("exceptionRaised", record, ct);
     }
 }

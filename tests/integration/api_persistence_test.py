@@ -364,8 +364,49 @@ def test_receiving(api, pw, skip_db):
            s == 200 and "P2" in (b.get("shortPayloads") or []), str(b.get("shortPayloads")))
 
     if not skip_db:
-        record("receiving", "Tray custody PERSISTED to SQL",
-               (count(pw, "ops.TrayCustody") or 0) > 0, "custody chain is never written")
+        rows = count(pw, "ops.TrayCustody") or 0
+        record("receiving", "Tray custody PERSISTED to SQL", rows > 0, f"{rows} custody rows")
+        # ASNs used to live in memory: a recycle left an inbound tray with no expected
+        # list, so every carton read as an over-scan.
+        record("receiving", "ASN header reached SQL",
+               count(pw, "ops.Asn", f"TrayQr='{tray}'") == 1)
+        record("receiving", "ASN lines reached SQL",
+               count(pw, "ops.AsnLine",
+                     f"AsnId=(SELECT AsnId FROM ops.Asn WHERE TrayQr='{tray}')") == 2)
+
+
+def test_console_exceptions(api, pw, skip_db):
+    print("\n── Exception console ──")
+    # The console read a private in-memory list, so a restart showed an empty board
+    # while ops.Exception still held every unactioned row.
+    s, b = call(api, "GET", "/console/exceptions", token=_token)
+    listed = b if isinstance(b, list) else []
+    record("console", "Console lists exceptions", s == 200 and len(listed) > 0, f"{len(listed)} listed")
+    if not listed:
+        return
+
+    if not skip_db:
+        in_sql = count(pw, "ops.Exception") or 0
+        record("console", "Console list matches the SQL row count",
+               len(listed) == in_sql, f"console={len(listed)} sql={in_sql}")
+
+    # Ids must be real ExceptionIds, not a local counter — otherwise actions 404.
+    target = listed[0]["id"]
+    s, b = call(api, "POST", f"/console/exceptions/{target}/acknowledge",
+                {"user": "integration-test", "note": "audit check"}, token=_token)
+    record("console", "Acknowledge succeeds against a listed id", s == 200, f"HTTP {s}")
+
+    s, b = call(api, "GET", f"/console/exceptions/{target}", token=_token)
+    ex = (b or {}).get("exception") or {}
+    record("console", "Status is Acknowledged on read-back", ex.get("status") == "Acknowledged", str(ex.get("status")))
+    record("console", "Audit trail records the actor",
+           any(a.get("user") == "integration-test" for a in (ex.get("audit") or [])),
+           f"{len(ex.get('audit') or [])} audit entries")
+
+    if not skip_db:
+        record("console", "Action PERSISTED to SQL",
+               count(pw, "ops.ExceptionAudit",
+                     f"ExceptionId={target} AND ActionedByUser='integration-test'") >= 1)
 
 
 def test_manifests(api, pw, skip_db):
@@ -418,6 +459,7 @@ def main():
     test_rbac(args.api)
     test_cameras(args.api, pw, skip_db)
     test_receiving(args.api, pw, skip_db)
+    test_console_exceptions(args.api, pw, skip_db)
     test_manifests(args.api, pw, skip_db)
     test_validation(args.api)
 

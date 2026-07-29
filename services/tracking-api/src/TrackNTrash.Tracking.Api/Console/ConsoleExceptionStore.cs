@@ -25,13 +25,40 @@ public sealed class ConsoleException
     public int AgeMinutes => (int)(DateTimeOffset.UtcNow - CreatedUtc).TotalMinutes;
 }
 
-/// <summary>In-memory exception store powering the console (SQL-backed in prod over ops.Exception).</summary>
-public sealed class ConsoleExceptionStore
+/// <summary>
+/// The read/action model behind the exception console. SQL-backed when a connection string
+/// is configured (<see cref="SqlConsoleExceptionStore"/>), in-memory otherwise.
+/// </summary>
+public interface IConsoleExceptionStore
+{
+    Task<ConsoleException> AddAsync(TrackException ex, CancellationToken ct = default);
+    Task<IReadOnlyList<ConsoleException>> ListAsync(string? checkpoint, string? severity, string? status,
+        string? route, CancellationToken ct = default);
+    Task<ConsoleException?> GetAsync(long id, CancellationToken ct = default);
+    /// <summary>Returns the updated exception, or null when the id is unknown.</summary>
+    Task<ConsoleException?> ApplyAsync(long id, string action, string user, string? note,
+        CancellationToken ct = default);
+}
+
+/// <summary>Maps a console action onto the status it produces. Shared by both stores.</summary>
+public static class ConsoleActions
+{
+    public static string? StatusFor(string action) => action switch
+    {
+        "acknowledge" => "Acknowledged",
+        "resolve" => "Resolved",
+        "escalate" => "Escalated",
+        _ => null
+    };
+}
+
+/// <summary>In-memory console store, used for local runs and tests with no database.</summary>
+public sealed class InMemoryConsoleExceptionStore : IConsoleExceptionStore
 {
     private readonly ConcurrentDictionary<long, ConsoleException> _byId = new();
     private long _seq;
 
-    public ConsoleException Add(TrackException ex)
+    public Task<ConsoleException> AddAsync(TrackException ex, CancellationToken ct = default)
     {
         var id = Interlocked.Increment(ref _seq);
         var record = new ConsoleException
@@ -50,35 +77,31 @@ public sealed class ConsoleExceptionStore
             CreatedUtc = ex.CreatedUtc
         };
         _byId[id] = record;
-        return record;
+        return Task.FromResult(record);
     }
 
-    public IEnumerable<ConsoleException> List(string? checkpoint, string? severity, string? status, string? route)
-        => _byId.Values
+    public Task<IReadOnlyList<ConsoleException>> ListAsync(string? checkpoint, string? severity, string? status,
+        string? route, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<ConsoleException>>(_byId.Values
             .Where(e => checkpoint is null || string.Equals(e.Checkpoint, checkpoint, StringComparison.OrdinalIgnoreCase))
             .Where(e => severity is null || string.Equals(e.Severity, severity, StringComparison.OrdinalIgnoreCase))
             .Where(e => status is null || string.Equals(e.Status, status, StringComparison.OrdinalIgnoreCase))
             .Where(e => route is null || string.Equals(e.Route, route, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(e => e.CreatedUtc);
+            .OrderByDescending(e => e.CreatedUtc)
+            .ToList());
 
-    public ConsoleException? Get(long id) => _byId.TryGetValue(id, out var e) ? e : null;
+    public Task<ConsoleException?> GetAsync(long id, CancellationToken ct = default)
+        => Task.FromResult(_byId.TryGetValue(id, out var e) ? e : null);
 
-    public bool Apply(long id, string action, string user, string? note, out ConsoleException? updated)
+    public Task<ConsoleException?> ApplyAsync(long id, string action, string user, string? note,
+        CancellationToken ct = default)
     {
-        updated = null;
-        if (!_byId.TryGetValue(id, out var e)) return false;
+        if (!_byId.TryGetValue(id, out var e)) return Task.FromResult<ConsoleException?>(null);
         lock (e)
         {
-            e.Status = action switch
-            {
-                "acknowledge" => "Acknowledged",
-                "resolve" => "Resolved",
-                "escalate" => "Escalated",
-                _ => e.Status
-            };
+            e.Status = ConsoleActions.StatusFor(action) ?? e.Status;
             e.Audit.Add(new AuditEntry(action, user, DateTimeOffset.UtcNow, note));
         }
-        updated = e;
-        return true;
+        return Task.FromResult<ConsoleException?>(e);
     }
 }
