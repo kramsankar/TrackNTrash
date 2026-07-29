@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .api_auth import ApiAuth
 
 
 @dataclass
 class ManifestCache:
     sync_url: str
+    # The manifest endpoint is no longer anonymous; without this the sync returns 401 and
+    # the dock silently verifies every tray against an empty expected-count table.
+    auth: "ApiAuth | None" = None
     _by_tray: dict[str, int] = field(default_factory=dict)   # trayQr -> expectedCartonCount
     _last_sync_iso: str = "2000-01-01T00:00:00Z"
 
@@ -26,10 +33,23 @@ class ManifestCache:
         """
         if http_get is None:
             import requests  # deferred
-            def http_get(url):  # noqa: E306
-                return requests.get(url, timeout=10).json()
 
-        data = http_get(f"{self.sync_url}?since={self._last_sync_iso}")
+            def http_get(url, headers=None):  # noqa: E306
+                r = requests.get(url, headers=headers or {}, timeout=10)
+                # One forced re-sign-in covers the token expiring between calls; a second
+                # 401 means the credentials are wrong, and retrying will not fix that.
+                if r.status_code == 401 and self.auth is not None:
+                    r = requests.get(url, headers=self.auth.headers(force=True), timeout=10)
+                r.raise_for_status()
+                return r.json()
+
+        url = f"{self.sync_url}?since={self._last_sync_iso}"
+        headers = self.auth.headers() if self.auth is not None else {}
+        try:
+            data = http_get(url, headers=headers)
+        except TypeError:
+            # Tests inject a single-argument http_get; keep that contract working.
+            data = http_get(url)
         manifests = data.get("manifests", []) if isinstance(data, dict) else []
         for m in manifests:
             self.upsert(m["trayQr"], int(m.get("expectedCartonCount", 0)))

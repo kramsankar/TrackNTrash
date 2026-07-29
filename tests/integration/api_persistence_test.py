@@ -154,6 +154,46 @@ def test_auth(api, admin_user, admin_pw):
            not leaked, ", ".join(leaked) if leaked else "all 401")
 
 
+def test_camera_service_account(api, camera_pw):
+    print("\n── Camera service account ──")
+    if not camera_pw:
+        record("device", "Camera service account credentials supplied", False,
+               "pass --camera-password to run these")
+        return
+
+    s, b = call(api, "POST", "/auth/login", {"username": "camera-agent", "password": camera_pw})
+    tok = b.get("token") if isinstance(b, dict) else None
+    record("device", "Camera service account can sign in", s == 200 and bool(tok), f"HTTP {s}")
+    if not tok:
+        return
+
+    # The two endpoints unattended hardware genuinely needs.
+    s, _ = call(api, "GET", "/manifests?since=2000-01-01T00:00:00Z", token=tok)
+    record("device", "Camera may sync manifests", s == 200, f"HTTP {s}")
+    s, _ = call(api, "POST", "/cameras/CAM-DOCK-1/heartbeat", {}, token=tok)
+    record("device", "Camera may send a heartbeat", s == 200, f"HTTP {s}")
+
+    # A camera is mounted where a contractor can reach it, so treat its credential as
+    # already leaked and assert what that buys an attacker: nothing.
+    leaked = []
+    for method, path, body in [
+        ("GET", "/orders", None), ("GET", "/assets", None), ("GET", "/cartons", None),
+        ("GET", "/items/counts", None), ("GET", "/cameras", None), ("GET", "/sitemaps", None),
+        ("GET", "/console/exceptions", None), ("GET", "/rbac/users", None),
+        ("GET", "/masters/product", None), ("GET", "/exceptions/open", None),
+        ("POST", "/orders", {"orderNumber": "DEV-PROBE", "storeCode": "S-LDN1", "lines": []}),
+        ("POST", "/events/scan", {"clientEventId": "dev-probe", "deviceId": "cam",
+                                  "eventType": "ReceivingComplete", "orderLineId": 1}),
+        ("POST", "/rbac/users", {"username": "dev-probe", "password": "x", "roleId": 1}),
+        ("POST", "/trips", {"vehicleReg": "DEV"}),
+    ]:
+        s, _ = call(api, method, path, body, token=tok)
+        if s != 403:
+            leaked.append(f"{method} {path}={s}")
+    record("device", "A leaked camera credential reaches nothing else",
+           not leaked, ", ".join(leaked) if leaked else "all 403")
+
+
 def test_orders(api, pw, skip_db):
     print("\n── Orders (create → walk checkpoints → persist) ──")
     order = "SO-IT-" + uuid.uuid4().hex[:6].upper()
@@ -489,6 +529,7 @@ def main():
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", required=True, help="console admin password")
     ap.add_argument("--sql-password", default=None, help="SQL admin password; omit to skip DB assertions")
+    ap.add_argument("--camera-password", default=None, help="camera-agent service account password")
     args = ap.parse_args()
     skip_db = not args.sql_password
     pw = args.sql_password
@@ -497,6 +538,7 @@ def main():
 
     test_health(args.api)
     test_auth(args.api, args.user, args.password)
+    test_camera_service_account(args.api, args.camera_password)
     line_id = test_orders(args.api, pw, skip_db)
     if line_id:
         test_idempotency(args.api, line_id)

@@ -10,9 +10,11 @@ import json
 import os
 import uuid
 
+from .api_auth import ApiAuth, AuthError
 from .config import ModuleConfig
 from .detector import Yolov8OnnxDetector
 from .gpio import Relay
+from .heartbeat import Heartbeat
 from .manifest_cache import ManifestCache
 from .pipeline import DockPipeline, RtspFrameSource
 from .verdict import Verdict
@@ -27,8 +29,22 @@ async def main() -> None:
     twin = await client.get_twin()
     config = ModuleConfig.from_twin(twin.get("desired", {}))
 
-    manifests = ManifestCache(sync_url=config.manifest_sync_url)
-    manifests.sync()
+    # The manifest sync and the heartbeat are both guarded now, so the module signs in as
+    # its own service account. Credentials come from the environment (IoT Edge module
+    # secrets), never from the twin, which is readable in the portal.
+    auth = ApiAuth.from_env(config.api_base_url)
+    if not auth.configured:
+        print("[auth] TNT_API_USERNAME / TNT_API_PASSWORD are not set — "
+              "manifest sync and heartbeat will be refused by the API")
+    manifests = ManifestCache(sync_url=config.manifest_sync_url, auth=auth)
+    try:
+        manifests.sync()
+    except AuthError as ex:
+        # Verification still runs; it just has no expected counts to compare against,
+        # which is worth saying out loud rather than silently passing every tray.
+        print(f"[auth] {ex} — running without manifest expectations")
+    except Exception as ex:
+        print(f"[dock] manifest sync failed: {ex}")
 
     pipeline = DockPipeline(
         config=config,
@@ -52,10 +68,21 @@ async def main() -> None:
     client.on_method_request_received = lambda req: asyncio.create_task(
         _handle_method(client, req, pipeline, relay, config))
 
+    heartbeat = Heartbeat(api_base=config.api_base_url, camera_code=config.camera_code, auth=auth)
+    asyncio.create_task(_heartbeat_loop(heartbeat, config))
+
     print("[dock] module started; awaiting triggers")
     while True:
         # Motion-based trigger loop would hook a motion detector here; poll placeholder.
         await asyncio.sleep(1)
+
+
+async def _heartbeat_loop(heartbeat: Heartbeat, config: ModuleConfig) -> None:
+    """A silent camera and a dead camera look identical on the console, so say so
+    regularly. Failures are logged inside send() and never stop the loop."""
+    while True:
+        await asyncio.to_thread(heartbeat.send)
+        await asyncio.sleep(max(10, config.heartbeat_seconds))
 
 
 async def _handle_method(client, request, pipeline, relay, config):

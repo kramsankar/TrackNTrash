@@ -13,4 +13,16 @@ public static class AuthEndpointExtensions
         if (options.LocalEnabled || options.EntraEnabled) builder.RequireAuthorization();
         return builder;
     }
+
+    /// <summary>
+    /// Same, but also admits device service accounts, which the default policy refuses.
+    /// Use only where unattended hardware genuinely has to reach the API.
+    /// </summary>
+    public static TBuilder AllowDevicesWhenConfigured<TBuilder>(this TBuilder builder, AuthOptions options)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        if (options.LocalEnabled || options.EntraEnabled)
+            builder.RequireAuthorization(DeviceRoles.DevicePolicy);
+        return builder;
+    }
 }

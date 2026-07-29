@@ -103,8 +103,18 @@ if (authOptions.LocalEnabled || authOptions.EntraEnabled)
         var schemes = new List<string>();
         if (authOptions.LocalEnabled) schemes.Add(JwtBearerDefaults.AuthenticationScheme);
         if (authOptions.EntraEnabled) schemes.Add("Entra");
+
+        // A camera sits unattended in a warehouse, so its credentials are the ones most
+        // likely to walk. A device account is therefore refused everywhere by default and
+        // allowed only on the handful of endpoints it genuinely needs (DevicePolicy).
         o.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder(schemes.ToArray())
-            .RequireAuthenticatedUser().Build();
+            .RequireAuthenticatedUser()
+            .RequireAssertion(ctx => !DeviceRoles.IsDeviceOnly(ctx.User))
+            .Build();
+
+        o.AddPolicy(DeviceRoles.DevicePolicy, p => p
+            .AddAuthenticationSchemes(schemes.ToArray())
+            .RequireAuthenticatedUser());
     });
 }
 
@@ -459,7 +469,7 @@ app.MapPost("/cameras/{cameraCode}/heartbeat", async (string cameraCode, IServic
     if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
     await store.HeartbeatAsync(cameraCode, ct);
     return Results.Ok(new { cameraCode, seen = DateTimeOffset.UtcNow });
-}).WithTags("Cameras").WithName("CameraHeartbeat").RequireAuthorizationWhenConfigured(authOptions);
+}).WithTags("Cameras").WithName("CameraHeartbeat").AllowDevicesWhenConfigured(authOptions);
 
 app.MapGet("/sitemaps", async (IServiceProvider sp, CancellationToken ct) =>
 {
@@ -536,7 +546,7 @@ app.MapGet("/manifests", async (DateTimeOffset? since, IManifestStore store, Can
     var manifests = await store.GetChangedSinceAsync(cutoff, ct);
     return Results.Ok(new { since = cutoff, count = manifests.Count, manifests });
 })
-.WithTags("Manifests").WithName("GetManifestsDelta").RequireAuthorizationWhenConfigured(authOptions);
+.WithTags("Manifests").WithName("GetManifestsDelta").AllowDevicesWhenConfigured(authOptions);
 
 app.MapPut("/manifests", async (ManifestDto dto, IManifestStore store, CancellationToken ct) =>
 {

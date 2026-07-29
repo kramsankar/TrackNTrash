@@ -113,3 +113,77 @@ def test_dockverification_message_shape():
     assert m["verdict"] == "PASS"
     assert m["decodedCount"] == 2
     assert m["expectedCount"] == 2
+
+
+# ---- Service-account auth (added when the manifest + heartbeat endpoints were guarded) ----
+
+def test_manifest_sync_still_accepts_a_single_argument_http_get():
+    """Tests inject a one-arg http_get; adding auth headers must not break that."""
+    from app.manifest_cache import ManifestCache
+
+    cache = ManifestCache(sync_url="https://api.test/manifests")
+    n = cache.sync(http_get=lambda url: {"manifests": [{"trayQr": "T-1", "expectedCartonCount": 4}]})
+    assert n == 1
+    assert cache.expected_for("T-1") == 4
+
+
+def test_manifest_sync_sends_the_bearer_token_when_authenticated():
+    from app.api_auth import ApiAuth
+    from app.manifest_cache import ManifestCache
+
+    auth = ApiAuth(base_url="https://api.test", username="camera-agent", password="pw")
+    auth.token(http_post=lambda url, json: (200, {"token": "TOK", "expiresUtc": None}))
+
+    seen = {}
+
+    def http_get(url, headers=None):
+        seen["headers"] = headers
+        return {"manifests": []}
+
+    ManifestCache(sync_url="https://api.test/manifests", auth=auth).sync(http_get=http_get)
+    assert seen["headers"]["Authorization"] == "Bearer TOK"
+
+
+def test_bad_credentials_raise_rather_than_running_blind():
+    """A silent auth failure would verify every tray against an empty expected table."""
+    import pytest
+    from app.api_auth import ApiAuth, AuthError
+
+    auth = ApiAuth(base_url="https://api.test", username="camera-agent", password="wrong")
+    with pytest.raises(AuthError):
+        auth.token(http_post=lambda url, json: (401, {}))
+
+
+def test_no_credentials_means_no_auth_header_rather_than_a_crash():
+    from app.api_auth import ApiAuth
+
+    auth = ApiAuth(base_url="https://api.test")
+    assert auth.configured is False
+    assert auth.headers() == {}
+
+
+def test_token_is_reused_until_it_nears_expiry():
+    import time
+    from app.api_auth import ApiAuth
+
+    calls = []
+
+    def http_post(url, json):
+        calls.append(url)
+        return (200, {"token": f"TOK{len(calls)}", "expiresUtc": None})
+
+    auth = ApiAuth(base_url="https://api.test", username="u", password="p")
+    auth._token, auth._expires_at = "CACHED", time.time() + 3600
+    assert auth.token(http_post=http_post) == "CACHED"
+    assert calls == []                      # nothing fetched while the token is fresh
+    assert auth.token(force=True, http_post=http_post) == "TOK1"
+
+
+def test_heartbeat_failure_never_raises():
+    """A missed heartbeat must not take down the verification pipeline."""
+    from app.heartbeat import Heartbeat
+
+    def boom(url, headers):
+        raise OSError("network down")
+
+    assert Heartbeat(api_base="https://api.test", camera_code="CAM-1").send(http_post=boom) is False
