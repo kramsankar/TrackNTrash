@@ -20,6 +20,7 @@ public sealed class AuthSession
 
     public string? Token { get; private set; }
     public string? Username { get; private set; }
+    public string[] Roles { get; private set; } = Array.Empty<string>();
     public bool IsSignedIn => !string.IsNullOrWhiteSpace(Token);
 
     public AuthSession()
@@ -45,7 +46,8 @@ public sealed class AuthSession
             if (string.IsNullOrWhiteSpace(body?.Token)) return "The server returned no token.";
 
             Token = body!.Token;
-            Username = username;
+            Username = string.IsNullOrWhiteSpace(body.Username) ? username : body.Username;
+            Roles = body.Roles ?? Array.Empty<string>();
             Preferences.Default.Set(TokenKey, Token);
             Preferences.Default.Set(UserKey, Username);
             Apply(http);
@@ -68,5 +70,8 @@ public sealed class AuthSession
         => http.DefaultRequestHeaders.Authorization =
             IsSignedIn ? new AuthenticationHeaderValue("Bearer", Token) : null;
 
-    private sealed record LoginResp(string? Token, string? DisplayName, string? Roles);
+    // Shape must match /auth/login exactly: roles comes back as an array, and typing it
+    // as a string makes System.Text.Json throw, which reads as "sign-in is broken".
+    private sealed record LoginResp(string? Token, DateTimeOffset? ExpiresUtc,
+        string? Name, string? Username, string[]? Roles);
 }
