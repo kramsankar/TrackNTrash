@@ -22,41 +22,49 @@ events, masters, RBAC, the exception console. That is asserted by the integratio
 The role deliberately has no `RoleFormMapping` rows: it is not a console login and has no
 business opening a screen.
 
-## Deploying it to a camera
+## Where the credentials live
 
-Credentials come from the environment, **never from the module twin** — twin desired
+| Where | What |
+|---|---|
+| Key Vault `kv-tracktrashdev-4ymqn2` | `camera-agent-username`, `camera-agent-password` — the source of truth |
+| `infra/bicep/main.bicep` | declares both secrets (`cameraAgentPassword` is a `@secure()` param) |
+| `deployment.json` | carries `TNT_API_USERNAME` / `TNT_API_PASSWORD` as **placeholders** |
+| the module's environment | where the real values land, at apply time |
+
+Credentials go into module **environment variables, never the module twin** — twin desired
 properties are readable in the Azure portal by anyone with reader access on the IoT Hub.
-
-For IoT Edge, set them as module environment variables in the deployment manifest:
-
-```json
-{
-  "modules": {
-    "visionModule": {
-      "env": {
-        "TNT_API_USERNAME": { "value": "camera-agent" },
-        "TNT_API_PASSWORD": { "value": "<from Key Vault>" }
-      }
-    }
-  }
-}
-```
-
-Non-secret settings still belong in the twin:
-
-```json
-{
-  "properties.desired": {
-    "apiBaseUrl": "https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net",
-    "cameraCode": "CAM-DOCK-1",
-    "heartbeatSeconds": 60
-  }
-}
-```
+Non-secret settings do belong in the twin: `apiBaseUrl`, `cameraCode`, `heartbeatSeconds`.
 
 `manifestSyncUrl` is derived from `apiBaseUrl`, so the two cannot drift and point at
 different environments. Set it explicitly only if the manifest feed genuinely lives
 elsewhere.
+
+## Applying it to a device
+
+The committed manifest holds no secrets. `scripts/apply-edge-deployment.ps1` reads them from
+Key Vault, renders the manifest to a temp file, applies it, and deletes the rendered copy in
+a `finally` block — so the password is on disk only for the duration of the call.
+
+```bash
+./scripts/apply-edge-deployment.ps1 -DeviceId dock-cam-ldn1 -AcrName <acr>
+```
+
+Add `-WhatIf` to render and validate without applying. The script refuses to deploy a
+manifest that still contains a placeholder, so a missing `-AcrName` fails loudly rather than
+shipping `<ACR>.azurecr.io` to a device.
+
+It also checks the device is registered first — `az iot edge set-modules` against a device
+that does not exist fails obscurely.
+
+### Prerequisites, in order
+
+1. **A registered IoT Edge device.** `iot-tracktrash-dev-4ymqn2` currently has none. See
+   [PROVISIONING.md](PROVISIONING.md).
+2. **A container registry holding the module image.** There is no ACR for this project yet;
+   `deployment.json` still references `<ACR>.azurecr.io/tracktrash/dockvision:1.0`.
+3. **The `azure-iot` CLI extension** (`az extension add --name azure-iot`).
+4. **Key Vault read access** — the caller needs a data-plane role (Key Vault Secrets User) on
+   the vault. Control-plane contributor is not enough to read a secret value.
 
 ## Token handling
 
@@ -70,15 +78,29 @@ tray against an empty expected-count table — passing everything, catching noth
 
 ## Rotating the password
 
+Three steps, in this order — the API first, so a camera never holds a credential the API has
+already stopped accepting.
+
 ```bash
+# 1. change it on the API
 curl -X POST "$API/auth/users" \
   -H "Content-Type: application/json" \
   -H "x-setup-key: $SETUP_KEY" \
-  -d '{"username":"camera-agent","displayName":"Dock camera service account","password":"<new>","roles":"CameraDevice"}'
+  -d '{"username":"camera-agent","displayName":"Dock camera service account","password":"NEW","roles":"CameraDevice"}'
 ```
 
-Then update `TNT_API_PASSWORD` in the deployment manifest. Existing tokens stay valid until
-they expire (12 hours), so cameras keep working through the rollout.
+```bash
+# 2. update the source of truth
+az keyvault secret set --vault-name kv-tracktrashdev-4ymqn2 --name camera-agent-password --value NEW
+```
+
+```bash
+# 3. push it to each device
+./scripts/apply-edge-deployment.ps1 -DeviceId dock-cam-ldn1 -AcrName <acr>
+```
+
+Existing tokens stay valid until they expire (12 hours), so cameras keep working through the
+rollout — they only need the new password once their current token lapses.
 
 Use alphanumeric passwords. A `%` in a password has already broken one toolchain in this
 project.

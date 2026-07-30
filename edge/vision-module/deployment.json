@@ -1,5 +1,5 @@
 {
-  "$comment": "IoT Edge deployment manifest for the dock vision module. Replace <ACR> and secrets.",
+  "$comment": "IoT Edge deployment manifest for the dock vision module. Bracketed UPPER_CASE placeholders are filled at apply time by scripts/apply-edge-deployment.ps1, which reads the camera credentials from Key Vault. Never commit real secrets to this file.",
   "modulesContent": {
     "$edgeAgent": {
       "properties.desired": {
@@ -20,13 +20,19 @@
         "systemModules": {
           "edgeAgent": {
             "type": "docker",
-            "settings": { "image": "mcr.microsoft.com/azureiotedge-agent:1.5", "createOptions": "{}" }
+            "settings": {
+              "image": "mcr.microsoft.com/azureiotedge-agent:1.5",
+              "createOptions": "{}"
+            }
           },
           "edgeHub": {
             "type": "docker",
             "status": "running",
             "restartPolicy": "always",
-            "settings": { "image": "mcr.microsoft.com/azureiotedge-hub:1.5", "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"5671/tcp\":[{\"HostPort\":\"5671\"}],\"8883/tcp\":[{\"HostPort\":\"8883\"}]}}}" }
+            "settings": {
+              "image": "mcr.microsoft.com/azureiotedge-hub:1.5",
+              "createOptions": "{\"HostConfig\":{\"PortBindings\":{\"5671/tcp\":[{\"HostPort\":\"5671\"}],\"8883/tcp\":[{\"HostPort\":\"8883\"}]}}}"
+            }
           }
         },
         "modules": {
@@ -40,7 +46,15 @@
               "createOptions": "{\"HostConfig\":{\"Privileged\":true,\"Devices\":[{\"PathOnHost\":\"/dev/gpiomem\",\"PathInContainer\":\"/dev/gpiomem\",\"CgroupPermissions\":\"rwm\"}]}}"
             },
             "env": {
-              "BLOB_CONNECTION_STRING": { "value": "<blob connection string>" }
+              "BLOB_CONNECTION_STRING": {
+                "value": "<BLOB_CONNECTION_STRING>"
+              },
+              "TNT_API_USERNAME": {
+                "value": "<TNT_API_USERNAME>"
+              },
+              "TNT_API_PASSWORD": {
+                "value": "<TNT_API_PASSWORD>"
+              }
             }
           }
         }
@@ -52,16 +66,20 @@
         "routes": {
           "dockToHub": "FROM /messages/modules/dockvision/outputs/dockVerification INTO $upstream"
         },
-        "storeAndForwardConfiguration": { "timeToLiveSecs": 604800 }
+        "storeAndForwardConfiguration": {
+          "timeToLiveSecs": 604800
+        }
       }
     },
     "dockvision": {
       "properties.desired": {
+        "apiBaseUrl": "https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net",
+        "cameraCode": "CAM-DOCK-1",
+        "heartbeatSeconds": 60,
         "cameraRtspUrl": "rtsp://dock-cam.local/stream1",
         "burstFrames": 5,
         "qualityThreshold": 100.0,
         "maxBurstRetries": 3,
-        "manifestSyncUrl": "https://tracktrash-tracking.azurewebsites.net/manifests",
         "blobExceptionContainer": "exceptions",
         "gpioRelayPin": 17,
         "triggerMode": "motion",

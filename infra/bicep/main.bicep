@@ -24,6 +24,10 @@ param sqlAdminLogin string
 @description('SQL admin password')
 param sqlAdminPassword string
 
+@description('Password for the camera-agent service account the dock cameras sign in with. Empty leaves the secret untouched.')
+@secure()
+param cameraAgentPassword string = ''
+
 @description('Object id of the ops principal granted Key Vault secret access')
 param opsGroupObjectId string
 
@@ -83,6 +87,26 @@ resource sbConnSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   name: 'servicebus-connection'
   properties: {
     value: listKeys(resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', serviceBus.name, 'RootManageSharedAccessKey'), '2022-10-01-preview').primaryConnectionString
+  }
+}
+
+// Camera service-account credentials. The dock cameras sign in as camera-agent to sync
+// manifests and post heartbeats; the CameraDevice role is refused everywhere else, so a
+// leaked camera credential buys nothing. Held here so it can be rotated and audited in one
+// place rather than living only inside an IoT Edge deployment manifest.
+resource cameraAgentUserSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'camera-agent-username'
+  properties: {
+    value: 'camera-agent'
+  }
+}
+
+resource cameraAgentPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(cameraAgentPassword)) {
+  parent: keyVault
+  name: 'camera-agent-password'
+  properties: {
+    value: cameraAgentPassword
   }
 }
 
