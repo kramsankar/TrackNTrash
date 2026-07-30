@@ -10,7 +10,7 @@
             "minDockerVersion": "v1.25",
             "registryCredentials": {
               "acr": {
-                "address": "<ACR>.azurecr.io",
+                "address": "crtracktrashdev4ymqn2.azurecr.io",
                 "username": "<ACR_USERNAME>",
                 "password": "<ACR_PASSWORD>"
               }
@@ -42,7 +42,7 @@
             "status": "running",
             "restartPolicy": "always",
             "settings": {
-              "image": "<ACR>.azurecr.io/tracktrash/dockvision:1.0",
+              "image": "crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:1.0",
               "createOptions": "{\"HostConfig\":{\"Privileged\":true,\"Devices\":[{\"PathOnHost\":\"/dev/gpiomem\",\"PathInContainer\":\"/dev/gpiomem\",\"CgroupPermissions\":\"rwm\"}]}}"
             },
             "env": {

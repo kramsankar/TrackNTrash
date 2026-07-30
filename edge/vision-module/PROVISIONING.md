@@ -1,15 +1,70 @@
 # Edge Device Provisioning & Camera Commissioning
 
+## 0. What is already provisioned (dev)
+
+| | |
+|---|---|
+| IoT Hub | `iot-tracktrash-dev-4ymqn2` |
+| Edge device | `dock-cam-ldn1` (`iotEdge=true`, enabled, `Disconnected` until a gateway attaches) |
+| Registry | `crtracktrashdev4ymqn2.azurecr.io` (Basic, admin user enabled) |
+| Image | `tracktrash/dockvision:1.0` |
+| Device connection string | Key Vault secret `edge-device-cs-dock-cam-ldn1` |
+
+The registry is declared in `infra/bicep/main.bicep`, so a full deployment adopts it rather
+than creating a second one. The **device is not** and cannot be: IoT Hub device identities
+live on the hub's data plane, not in ARM, so they are not expressible in Bicep. Registering a
+device is a deliberate step — see below.
+
 ## 1. Edge device
 
 1. Install Azure IoT Edge runtime (1.5 LTS) on the gateway device (x64 or ARM64).
-2. Register the device in IoT Hub; provision with its device connection string (or DPS).
+2. Provision it with the device connection string:
+   ```bash
+   az keyvault secret show --vault-name kv-tracktrashdev-4ymqn2 --name edge-device-cs-dock-cam-ldn1 --query value -o tsv
+   ```
+   then `sudo iotedge config mp --connection-string '<that>'` and `sudo iotedge config apply`.
 3. Grant Docker access to `/dev/gpiomem` (relay) — the deployment sets `Privileged` + device mapping.
-4. Log in to ACR and deploy: `az iot edge set-modules --hub-name <hub> --device-id <dev> --content deployment.json`.
+4. Apply the deployment — use the script, not raw `set-modules`, so the camera credentials are
+   pulled from Key Vault rather than pasted into the manifest:
+   ```bash
+   ./scripts/apply-edge-deployment.ps1 -DeviceId dock-cam-ldn1
+   ```
+
+### Registering a further device
+
+The `azure-iot` CLI extension is required for `az iot hub device-identity create`. If it
+fails to install (it does on the bundled 32-bit Python in the Azure CLI on Windows), the
+IoT Hub service REST API does the same job — `PUT https://<hub>.azure-devices.net/devices/<id>?api-version=2021-04-12`
+with `{"deviceId": "...", "status": "enabled", "capabilities": {"iotEdge": true}}` and a
+SAS token built from the `iothubowner` key. Omit the symmetric keys and the hub issues them.
+
+Store the resulting connection string as a Key Vault secret named
+`edge-device-cs-<deviceId>` so commissioning a replacement does not mean re-issuing keys.
 
 ## 2. Model
 
-Place the exported `carton_yolov8n.onnx` (from Module 5) at `models/` in the image build, or mount it via a mapped volume for field updates without a rebuild.
+**Not yet in place.** `models/` holds a placeholder README; the exported
+`carton_yolov8n.onnx` comes from Module 5. The module image builds and starts without it, but
+the first detection raises — `Yolov8OnnxDetector` loads the model lazily on first `count()`.
+
+Either place the file at `models/` before building the image, or mount it via a mapped volume
+so it can be updated in the field without a rebuild.
+
+### Rebuilding the image
+
+`az acr build` builds server-side, so no local Docker is needed:
+
+```bash
+az acr build --registry crtracktrashdev4ymqn2 --image tracktrash/dockvision:1.0 --platform linux/amd64 .
+```
+
+On a Windows console the CLI can crash while *streaming* the build log (`cp1252` cannot
+encode the output). The build itself is unaffected — check it with
+`az acr task list-runs --registry crtracktrashdev4ymqn2 --top 3 -o table`.
+
+The image carries `ultralytics`, and therefore torch, because the detector loads the model
+through `YOLO(...)` at runtime. That makes it large; switching to a direct `onnxruntime`
+session would cut most of it, at the cost of hand-rolling the box decoding.
 
 ## 3. Camera commissioning checklist
 

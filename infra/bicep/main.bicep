@@ -230,6 +230,21 @@ resource iotHub 'Microsoft.Devices/IotHubs@2023-06-30' = {
   sku: { name: env == 'prod' ? 'S1' : 'S1', capacity: 1 }
 }
 
+// ---------------- Container Registry (edge module images) ----------------
+// Holds the dock vision module image that IoT Edge pulls. Registry names allow no hyphens
+// and must be globally unique, hence the flattened form.
+// Admin user is enabled because the IoT Edge deployment manifest authenticates with a
+// registry username/password — edgeAgent has no managed identity to use instead.
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: take(replace(toLower('cr${baseName}${env}${uniq6}'), '-', ''), 50)
+  location: location
+  tags: tags
+  sku: { name: env == 'prod' ? 'Standard' : 'Basic' }
+  properties: {
+    adminUserEnabled: true
+  }
+}
+
 // ---------------- App Service (Tracking API) ----------------
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: 'plan-${suffix}'
@@ -328,3 +343,5 @@ output trackingApiUrl string = 'https://${trackingApi.properties.defaultHostName
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output iotHubName string = iotHub.name
 output storageAccount string = storage.name
+output acrName string = acr.name
+output acrLoginServer string = acr.properties.loginServer

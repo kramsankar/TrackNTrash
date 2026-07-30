@@ -56,15 +56,29 @@ shipping `<ACR>.azurecr.io` to a device.
 It also checks the device is registered first — `az iot edge set-modules` against a device
 that does not exist fails obscurely.
 
-### Prerequisites, in order
+### What is in place
 
-1. **A registered IoT Edge device.** `iot-tracktrash-dev-4ymqn2` currently has none. See
-   [PROVISIONING.md](PROVISIONING.md).
-2. **A container registry holding the module image.** There is no ACR for this project yet;
-   `deployment.json` still references `<ACR>.azurecr.io/tracktrash/dockvision:1.0`.
-3. **The `azure-iot` CLI extension** (`az extension add --name azure-iot`).
+| | |
+|---|---|
+| IoT Hub | `iot-tracktrash-dev-4ymqn2` |
+| Edge device | `dock-cam-ldn1` — registered, `iotEdge=true`, enabled |
+| Registry | `crtracktrashdev4ymqn2.azurecr.io` (Basic, admin user on) |
+| Image | `crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:1.0` |
+| Vault secrets | `camera-agent-username`, `camera-agent-password`, `edge-device-cs-dock-cam-ldn1` |
+
+### Still needed before a camera actually verifies a tray
+
+1. **The detection model.** `models/` holds only a placeholder README —
+   `carton_yolov8n.onnx` comes from Module 5 and is not in the repo. The module starts
+   without it but the first detection raises. Either bake it into the image or mount it as a
+   volume, which also lets it be updated in the field without a rebuild.
+2. **A physical gateway running the IoT Edge runtime**, provisioned with the device
+   connection string from `edge-device-cs-dock-cam-ldn1`. The device shows `Disconnected`
+   until then. See [PROVISIONING.md](PROVISIONING.md).
+3. **The `azure-iot` CLI extension** on whatever machine applies the deployment
+   (`az extension add --name azure-iot`).
 4. **Key Vault read access** — the caller needs a data-plane role (Key Vault Secrets User) on
-   the vault. Control-plane contributor is not enough to read a secret value.
+   the vault. Control-plane contributor is *not* enough to read a secret value.
 
 ## Token handling
 
