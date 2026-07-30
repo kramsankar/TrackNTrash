@@ -108,15 +108,22 @@ needs — it will read intermittently, which is worse than not reading at all. 3
 |---|---|
 | CPU | x64 or ARM64, 4 cores |
 | RAM | 4 GB (8 GB if you add more camera streams) |
-| Disk | **20 GB free** |
+| Disk | 8 GB free |
 | OS | Ubuntu 22.04 LTS or Raspberry Pi OS 64-bit |
 | Runtime | Azure IoT Edge 1.5 LTS |
 | Network | outbound 443 and 8883 to Azure |
 | GPIO | optional relay on `/dev/gpiomem` for a stack light or gate |
 
-The disk figure is not padding. **The module image is 3.15 GB** because the detector loads its
-model through `ultralytics`, which pulls in torch. Budget for that pull over a warehouse
-network, and see §7 if you want it smaller.
+**The module image is 218 MB.** It was 3.15 GB until the detector was switched off
+`ultralytics` — that package is needed to *export* a model, not to run one, and it dragged
+torch in with it. Inference now runs on `onnxruntime` directly, which is a 14× smaller pull
+onto every gateway. Most of the remainder is `onnxruntime` and OpenCV, both of which are
+genuinely used.
+
+A Raspberry Pi 4 with 4 GB is enough for one camera at a few verifications per minute. Adding
+streams costs RAM and CPU roughly linearly; past two or three, move to an x64 mini-PC or a GPU
+gateway (swap `onnxruntime` for `onnxruntime-gpu` and use a CUDA base — the detector already
+prefers `CUDAExecutionProvider` when the runtime offers it).
 
 ### 2.5 Build machine
 
@@ -276,8 +283,23 @@ on disk only for the duration of the call.
 
 **`models/carton_yolov8n.onnx` is not in the repo.** Without it the module starts and then
 raises on the first tray it tries to count, because the detector loads its model lazily. Bake
-it into the image or mount it as a volume — the volume route also lets you update the model in
-the field without a 3.15 GB rebuild.
+it into the image or mount it as a volume — the volume route also lets you swap the model in the
+field without a rebuild at all.
+
+Export it for this detector with:
+
+```bash
+yolo export model=carton_yolov8n.pt format=onnx imgsz=640 opset=12
+```
+
+`ultralytics` is only needed on the workstation doing that export — it is in
+`requirements-dev.txt`, not the image. Either export layout works; `decode()` inspects the output
+shape rather than assuming, because guessing wrong between them yields a plausible but
+meaningless count.
+
+Two knobs are tunable from the module twin without a rebuild: `confidence` and `iouThreshold`.
+The second matters per dock — tightly packed cartons need it higher or neighbouring boxes get
+merged into one; loosely spaced ones need it lower or a single carton gets counted twice.
 
 ---
 
@@ -358,7 +380,7 @@ Every one of these was hit during this build.
 | MSBuild signing fails obscurely | A `%` in the keystore password — MSBuild reads it as an escape. Use alphanumeric only. |
 | `error XA5300` on an Android build | Android SDK not on the probed path. Pass `-p:AndroidSdkDirectory="C:/Android/sdk"`. |
 | `az extension add --name azure-iot` fails with a pip error | The Azure CLI's bundled 32-bit Python. Use the IoT Hub REST API — `PUT /devices/{id}` with a SAS token from the `iothubowner` key. |
-| `az acr build` crashes mid-log with a `charmap` error | `cp1252` console cannot encode the build output. The build is unaffected — check `az acr task list-runs`. |
+| `az acr build` crashes mid-log with a `charmap` error | `cp1252` console cannot encode the build output. Pass `--no-logs`; the build itself is unaffected either way — check `az acr task list-runs`. |
 | Carton QR rejected by a check constraint | GS1 serials may contain hyphens; migration 004 widened the charset. |
 | Module stuck in `backoff` on the device | The image tag is not in the registry. The apply script warns about this before deploying. |
 

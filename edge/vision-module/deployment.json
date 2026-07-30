@@ -42,7 +42,7 @@
             "status": "running",
             "restartPolicy": "always",
             "settings": {
-              "image": "crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:1.0",
+              "image": "crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:2.0",
               "createOptions": "{\"HostConfig\":{\"Privileged\":true,\"Devices\":[{\"PathOnHost\":\"/dev/gpiomem\",\"PathInContainer\":\"/dev/gpiomem\",\"CgroupPermissions\":\"rwm\"}]}}"
             },
             "env": {
@@ -84,7 +84,8 @@
         "gpioRelayPin": 17,
         "triggerMode": "motion",
         "modelPath": "models/carton_yolov8n.onnx",
-        "confidence": 0.35
+        "confidence": 0.35,
+        "iouThreshold": 0.45
       }
     }
   }

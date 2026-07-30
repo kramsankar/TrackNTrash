@@ -1,0 +1,7 @@
+# Local development and CI only — never installed into the module image.
+-r requirements.txt
+pytest>=8.0
+
+# Only needed to re-export the detection model to ONNX. This is the dependency that used to
+# be in the runtime image and cost 3 GB; keep it here, on the workstation that does the export.
+# ultralytics>=8.2,<9

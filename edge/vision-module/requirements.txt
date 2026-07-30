@@ -1,14 +1,15 @@
-# Edge runtime deps (installed on the IoT Edge device image)
+# Runtime deps for the module image. Keep this lean — it is pulled onto every gateway.
+#
+# ultralytics is deliberately absent. It is only needed to *export* a model; inference runs on
+# onnxruntime directly (see app/detector.py). Including it dragged in torch and took the image
+# to 3.1 GB. pytest moved to requirements-dev.txt for the same reason.
 azure-iot-device>=2.13,<3
 azure-storage-blob>=12.19,<13
 opencv-python-headless>=4.9,<5
 numpy>=1.26,<2
-ultralytics>=8.2,<9
 onnxruntime>=1.17,<2
 zxing-cpp>=2.2,<3
 pyzbar>=0.1.9          # fallback decoder
 requests>=2.31,<3
-# RPi.GPIO is installed only on the physical device (ARM), not in CI
 
-# Dev / test
-pytest>=8.0
+# RPi.GPIO is installed only on the physical device (ARM), not in CI or the image.

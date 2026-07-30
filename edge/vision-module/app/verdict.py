@@ -1,6 +1,6 @@
 """Pure verdict + QR-union logic for the dock verification pipeline.
 
-Kept free of heavy dependencies (cv2 / ultralytics / zxing) so it is trivially unit-testable.
+Kept free of heavy dependencies (cv2 / onnxruntime / zxing) so it is trivially unit-testable.
 """
 from __future__ import annotations
 

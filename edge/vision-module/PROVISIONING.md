@@ -55,16 +55,38 @@ so it can be updated in the field without a rebuild.
 `az acr build` builds server-side, so no local Docker is needed:
 
 ```bash
-az acr build --registry crtracktrashdev4ymqn2 --image tracktrash/dockvision:1.0 --platform linux/amd64 .
+az acr build --registry crtracktrashdev4ymqn2 --image tracktrash/dockvision:2.0 --platform linux/amd64 .
 ```
 
-On a Windows console the CLI can crash while *streaming* the build log (`cp1252` cannot
-encode the output). The build itself is unaffected — check it with
-`az acr task list-runs --registry crtracktrashdev4ymqn2 --top 3 -o table`.
+Add `--no-logs` on a Windows console. The CLI can otherwise crash while *streaming* the build
+log (`cp1252` cannot encode the output). The build itself is unaffected either way — check it
+with `az acr task list-runs --registry crtracktrashdev4ymqn2 --top 3 -o table`.
 
-The image carries `ultralytics`, and therefore torch, because the detector loads the model
-through `YOLO(...)` at runtime. That makes it large; switching to a direct `onnxruntime`
-session would cut most of it, at the cost of hand-rolling the box decoding.
+### Why the image is small now
+
+`1.0` carried `ultralytics`, and therefore torch, because the detector loaded its model through
+`YOLO(...)`. That is a dependency only the model **export** needs — inference needs an ONNX
+session and some array arithmetic.
+
+From `2.0`, `app/detector.py` runs `onnxruntime` directly and does its own decoding: letterbox,
+threshold, and non-maximum suppression. That arithmetic is the part most likely to be subtly
+wrong, so it sits in module-level functions covered by unit tests against synthetic tensors —
+including the two export layouts, adjacent cartons that must not be merged, and duplicate boxes
+on one carton that must be.
+
+`ultralytics` now lives in `requirements-dev.txt`, commented, on the workstation that does the
+export. `pytest` moved there too rather than shipping to every gateway.
+
+To re-export a model for this detector:
+
+```bash
+yolo export model=carton_yolov8n.pt format=onnx imgsz=640 opset=12
+```
+
+Either layout works — plain, or `nms=True` for an end-to-end export. `decode()` inspects the
+output shape rather than assuming, because guessing wrong yields a plausible but meaningless
+count. For a GPU gateway, swap `onnxruntime` for `onnxruntime-gpu` and use a CUDA base image;
+the detector already prefers `CUDAExecutionProvider` when the runtime offers it.
 
 ## 3. Camera commissioning checklist
 

@@ -21,6 +21,10 @@ class ModuleConfig:
     trigger_mode: str = "motion"            # "motion" | "button"
     model_path: str = "models/carton_yolov8n.onnx"
     confidence: float = 0.35
+    # Non-maximum suppression overlap. Ours since the detector dropped ultralytics, and
+    # worth tuning per dock: tightly packed cartons need a higher value or neighbours get
+    # merged, loosely spaced ones a lower one or one carton counts twice.
+    iou_threshold: float = 0.45
 
     @classmethod
     def from_twin(cls, desired: dict) -> "ModuleConfig":
@@ -39,6 +43,7 @@ class ModuleConfig:
             "triggerMode": "trigger_mode",
             "modelPath": "model_path",
             "confidence": "confidence",
+            "iouThreshold": "iou_threshold",
         }
         for twin_key, attr in mapping.items():
             if twin_key in desired and desired[twin_key] is not None:

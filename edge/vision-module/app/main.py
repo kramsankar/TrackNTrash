@@ -49,7 +49,8 @@ async def main() -> None:
     pipeline = DockPipeline(
         config=config,
         source=RtspFrameSource(config.camera_rtsp_url),
-        detector=Yolov8OnnxDetector(config.model_path, config.confidence),
+        detector=Yolov8OnnxDetector(config.model_path, config.confidence,
+                                    iou_threshold=config.iou_threshold),
         manifests=manifests,
     )
     relay = Relay(config.gpio_relay_pin)

@@ -187,3 +187,115 @@ def test_heartbeat_failure_never_raises():
         raise OSError("network down")
 
     assert Heartbeat(api_base="https://api.test", camera_code="CAM-1").send(http_post=boom) is False
+
+
+# ---- Detector postprocessing (added when ultralytics was dropped for onnxruntime) ---------
+# This arithmetic used to live inside ultralytics. It is now ours, so it is tested directly:
+# a wrong transpose or a missing NMS pass yields a plausible count that is simply incorrect,
+# which is the worst possible failure at a dock.
+
+import numpy as np
+import pytest
+
+from app.detector import decode, nms, xywh_to_xyxy
+
+
+def _plain_output(rows, num_classes=1, anchors=8400):
+    """Build a (1, 4+nc, anchors) tensor like a plain YOLOv8 export, with `rows` populated."""
+    out = np.zeros((1, 4 + num_classes, anchors), dtype=np.float32)
+    for i, (cx, cy, w, h, score) in enumerate(rows):
+        out[0, 0, i], out[0, 1, i], out[0, 2, i], out[0, 3, i] = cx, cy, w, h
+        out[0, 4, i] = score
+    return out
+
+
+def test_xywh_to_xyxy_converts_centre_form():
+    boxes = np.array([[100.0, 100.0, 40.0, 20.0]], dtype=np.float32)
+    assert xywh_to_xyxy(boxes).tolist() == [[80.0, 90.0, 120.0, 110.0]]
+
+
+def test_decode_counts_three_separated_cartons():
+    out = _plain_output([(100, 100, 50, 50, 0.9),
+                         (300, 100, 50, 50, 0.8),
+                         (500, 100, 50, 50, 0.7)])
+    boxes, scores = decode(out, confidence=0.35)
+    assert len(boxes) == 3
+    # highest score first, because NMS returns in descending score order
+    assert scores[0] == pytest.approx(0.9)
+
+
+def test_decode_drops_boxes_below_confidence():
+    out = _plain_output([(100, 100, 50, 50, 0.9), (300, 100, 50, 50, 0.20)])
+    boxes, _ = decode(out, confidence=0.35)
+    assert len(boxes) == 1
+
+
+def test_decode_suppresses_duplicate_boxes_on_one_carton():
+    """Three near-identical boxes on the same carton must count as one, not three —
+    otherwise the dock reads OVER and raises a spurious exception."""
+    out = _plain_output([(200, 200, 80, 80, 0.90),
+                         (203, 201, 82, 79, 0.85),
+                         (198, 199, 79, 81, 0.80)])
+    boxes, _ = decode(out, confidence=0.35)
+    assert len(boxes) == 1
+
+
+def test_decode_keeps_adjacent_cartons_that_merely_touch():
+    """Cartons sit side by side on a tray. Suppression must not merge neighbours."""
+    out = _plain_output([(100, 200, 90, 90, 0.90),
+                         (195, 200, 90, 90, 0.88)])
+    boxes, _ = decode(out, confidence=0.35)
+    assert len(boxes) == 2
+
+
+def test_decode_handles_the_transposed_anchor_axis():
+    """A plain export puts anchors last. Reading it untransposed would treat four anchors as
+    channels and silently produce nonsense."""
+    out = _plain_output([(100, 100, 50, 50, 0.9)])
+    assert out.shape == (1, 5, 8400)
+    boxes, _ = decode(out, confidence=0.35)
+    assert len(boxes) == 1
+    # already-transposed input must give the same answer
+    boxes2, _ = decode(np.transpose(out, (0, 2, 1)), confidence=0.35)
+    assert len(boxes2) == 1
+
+
+def test_decode_handles_an_end_to_end_export_with_nms_baked_in():
+    """Exported with nms=True the output is already xyxy + score + class."""
+    out = np.array([[[10, 10, 50, 50, 0.91, 0.0],
+                     [60, 10, 100, 50, 0.72, 0.0],
+                     [10, 60, 50, 100, 0.11, 0.0]]], dtype=np.float32)
+    boxes, scores = decode(out, confidence=0.35)
+    assert len(boxes) == 2
+    assert boxes[0].tolist() == [10.0, 10.0, 50.0, 50.0]   # left as corners, not re-decoded
+
+
+def test_decode_returns_nothing_when_the_tray_is_empty():
+    boxes, scores = decode(_plain_output([]), confidence=0.35)
+    assert len(boxes) == 0 and len(scores) == 0
+
+
+def test_decode_rejects_an_unusable_shape_rather_than_guessing():
+    with pytest.raises(ValueError):
+        decode(np.zeros((1, 2, 3, 4), dtype=np.float32), confidence=0.35)
+
+
+def test_nms_tolerates_a_zero_area_box():
+    """A degenerate box would divide by zero in the IoU; it must not crash the burst."""
+    boxes = np.array([[10.0, 10.0, 10.0, 10.0], [20.0, 20.0, 60.0, 60.0]], dtype=np.float32)
+    scores = np.array([0.9, 0.8], dtype=np.float32)
+    assert len(nms(boxes, scores)) == 2
+
+
+def test_nms_on_no_boxes_is_empty():
+    assert nms(np.empty((0, 4), dtype=np.float32), np.empty((0,), dtype=np.float32)) == []
+
+
+def test_detector_no_longer_imports_ultralytics():
+    """The whole point of the change: torch must not be reachable from the runtime path."""
+    import pathlib
+    src = pathlib.Path("app/detector.py").read_text(encoding="utf-8")
+    assert "from ultralytics" not in src and "import ultralytics" not in src
+    reqs = pathlib.Path("requirements.txt").read_text(encoding="utf-8")
+    active = [ln for ln in reqs.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+    assert not any("ultralytics" in ln for ln in active)
