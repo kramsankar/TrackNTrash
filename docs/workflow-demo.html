@@ -1,0 +1,725 @@
+<title>TrackNTrash — Live Dispatch Board</title>
+
+<style>
+  /* ───────────────────────────────────────────────────────────────────────────
+     Design plan
+     Colour  : near-monochrome cool slate. The ONLY chromatic colour on screen
+               is state — pass #3f9e63, attention #d99429, critical #cf4a3f,
+               moving #4a7fb5. In a control room colour means something, so
+               there is no decorative accent competing with the signal lamps.
+     Type    : system sans for prose, monospace carrying the character — GS1
+               codes, tray ids, timestamps and the event log are the subject's
+               native voice, so they are set in mono with tabular figures.
+     Layout  : a dock control board. Checkpoint rail left, append-only event
+               log centre (mirroring the real event-sourced store), exception
+               board right. Scanned at a glance, not read top to bottom.
+     ─────────────────────────────────────────────────────────────────────────── */
+
+  :root {
+    --ground:      #eef0ee;
+    --surface:     #fafbfa;
+    --surface-2:   #e8ebe8;
+    --line:        #d2d7d3;
+    --line-strong: #b6bdb8;
+    --ink:         #191d1b;
+    --ink-2:       #4d5551;
+    --ink-3:       #767f7a;
+
+    --pass:      #2f7d4e;
+    --pass-bg:   #e2efe6;
+    --attention: #a86b12;
+    --attention-bg: #f7ecd8;
+    --critical:  #b03a30;
+    --critical-bg:  #f8e3e0;
+    --moving:    #2f6396;
+    --moving-bg: #e0eaf3;
+    --idle:      #8c948f;
+
+    --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+    --r: 3px;
+    --shadow: 0 1px 2px rgba(20,28,24,.06), 0 4px 14px rgba(20,28,24,.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:      #0e1214;
+      --surface:     #161b1e;
+      --surface-2:   #1d2427;
+      --line:        #2a3236;
+      --line-strong: #3b4449;
+      --ink:         #e6ebe8;
+      --ink-2:       #a3adaa;
+      --ink-3:       #737d7a;
+
+      --pass:      #55b87b;
+      --pass-bg:   #14291d;
+      --attention: #d99429;
+      --attention-bg: #2d2313;
+      --critical:  #e2685c;
+      --critical-bg:  #2e1a18;
+      --moving:    #62a0d8;
+      --moving-bg: #14222f;
+      --idle:      #5c6663;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:#0e1214; --surface:#161b1e; --surface-2:#1d2427; --line:#2a3236;
+    --line-strong:#3b4449; --ink:#e6ebe8; --ink-2:#a3adaa; --ink-3:#737d7a;
+    --pass:#55b87b; --pass-bg:#14291d; --attention:#d99429; --attention-bg:#2d2313;
+    --critical:#e2685c; --critical-bg:#2e1a18; --moving:#62a0d8; --moving-bg:#14222f;
+    --idle:#5c6663; --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.3);
+  }
+  :root[data-theme="light"] {
+    --ground:#eef0ee; --surface:#fafbfa; --surface-2:#e8ebe8; --line:#d2d7d3;
+    --line-strong:#b6bdb8; --ink:#191d1b; --ink-2:#4d5551; --ink-3:#767f7a;
+    --pass:#2f7d4e; --pass-bg:#e2efe6; --attention:#a86b12; --attention-bg:#f7ecd8;
+    --critical:#b03a30; --critical-bg:#f8e3e0; --moving:#2f6396; --moving-bg:#e0eaf3;
+    --idle:#8c948f; --shadow:0 1px 2px rgba(20,28,24,.06), 0 4px 14px rgba(20,28,24,.05);
+  }
+
+  * { box-sizing: border-box; }
+
+  .board {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.5;
+    padding: clamp(14px, 3vw, 30px);
+    min-height: 100%;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+  /* ── masthead ───────────────────────────────────────────────────────────── */
+  .mast { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .mast-id { display: flex; flex-direction: column; gap: 3px; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  h1 {
+    margin: 0; font-size: clamp(23px, 3.4vw, 33px); font-weight: 760;
+    letter-spacing: -.022em; text-wrap: balance; line-height: 1.1;
+  }
+  .mast-sub { margin: 2px 0 0; color: var(--ink-2); font-size: 13.5px; max-width: 62ch; }
+
+  .clock {
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+    text-align: right; display: flex; flex-direction: column; gap: 2px;
+  }
+  .clock-time { font-size: 27px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+  .clock-label { font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-3); }
+
+  /* ── control deck ───────────────────────────────────────────────────────── */
+  .deck {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 13px 15px; display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center;
+    box-shadow: var(--shadow);
+  }
+  .deck-group { display: flex; align-items: center; gap: 8px; }
+  .deck-label {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-3); white-space: nowrap;
+  }
+
+  button, select {
+    font-family: var(--font-ui); font-size: 13px; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--line-strong);
+    border-radius: var(--r); padding: 7px 13px; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--ink-3); }
+  button:focus-visible, select:focus-visible {
+    outline: 2px solid var(--moving); outline-offset: 2px;
+  }
+  button[disabled] { opacity: .42; cursor: not-allowed; }
+  button.primary {
+    background: var(--ink); color: var(--ground); border-color: var(--ink); font-weight: 600;
+    min-width: 92px;
+  }
+  button.primary:hover { opacity: .88; }
+  select { padding-right: 8px; }
+
+  .speeds { display: flex; }
+  .speeds button {
+    border-radius: 0; margin-left: -1px; padding: 7px 11px;
+    font-family: var(--font-mono); font-size: 12px;
+  }
+  .speeds button:first-child { border-radius: var(--r) 0 0 var(--r); margin-left: 0; }
+  .speeds button:last-child { border-radius: 0 var(--r) var(--r) 0; }
+  .speeds button[aria-pressed="true"] {
+    background: var(--ink); color: var(--ground); border-color: var(--ink); z-index: 1;
+  }
+
+  /* ── consignment strip ──────────────────────────────────────────────────── */
+  .consign {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    box-shadow: var(--shadow); display: grid; gap: 1px;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    overflow: hidden;
+  }
+  .cell { padding: 11px 14px; background: var(--surface); }
+  .cell + .cell { box-shadow: -1px 0 0 var(--line); }
+  .cell dt {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 3px;
+  }
+  .cell dd {
+    margin: 0; font-family: var(--font-mono); font-size: 13.5px; font-weight: 550;
+    font-variant-numeric: tabular-nums; word-break: break-all;
+  }
+
+  /* ── the three columns ──────────────────────────────────────────────────── */
+  .cols { display: grid; gap: 18px; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) minmax(0, 320px); align-items: start; }
+  @media (max-width: 1080px) { .cols { grid-template-columns: 1fr 1fr; } .col-log { grid-column: 1 / -1; } }
+  @media (max-width: 680px)  { .cols { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .panel-head {
+    padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  }
+  .panel-title {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-2); font-weight: 600;
+  }
+  .panel-count {
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── checkpoint rail ────────────────────────────────────────────────────── */
+  .rail { list-style: none; margin: 0; padding: 0; }
+  .cp {
+    display: grid; grid-template-columns: 30px 1fr; gap: 12px;
+    padding: 13px 14px; position: relative;
+  }
+  .cp + .cp { border-top: 1px solid var(--line); }
+  .lamp-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .lamp {
+    width: 15px; height: 15px; border-radius: 50%;
+    background: var(--surface-2); border: 2px solid var(--line-strong); flex: none;
+  }
+  .cp-num {
+    font-family: var(--font-mono); font-size: 9.5px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .cp-name { font-weight: 620; font-size: 14px; letter-spacing: -.005em; }
+  .cp-who { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+  .cp-note {
+    font-family: var(--font-mono); font-size: 11.5px; margin-top: 6px; color: var(--ink-2);
+    min-height: 1.35em; line-height: 1.35;
+  }
+
+  .cp[data-lamp="active"]  .lamp { background: var(--moving);    border-color: var(--moving);    box-shadow: 0 0 0 4px var(--moving-bg); }
+  .cp[data-lamp="pass"]    .lamp { background: var(--pass);      border-color: var(--pass); }
+  .cp[data-lamp="warn"]    .lamp { background: var(--attention); border-color: var(--attention); box-shadow: 0 0 0 4px var(--attention-bg); }
+  .cp[data-lamp="stop"]    .lamp { background: var(--critical);  border-color: var(--critical);  box-shadow: 0 0 0 4px var(--critical-bg); }
+  .cp[data-lamp="active"] .cp-note { color: var(--moving); }
+  .cp[data-lamp="warn"]   .cp-note { color: var(--attention); }
+  .cp[data-lamp="stop"]   .cp-note { color: var(--critical); }
+  .cp[data-lamp="pass"]   .cp-note { color: var(--pass); }
+
+  .cp[data-lamp="active"] .lamp { animation: breathe 1.9s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+
+  /* ── state track ────────────────────────────────────────────────────────── */
+  .track { padding: 13px 14px; display: flex; flex-direction: column; gap: 7px; }
+  .st {
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+  }
+  .st-bar { width: 3px; height: 15px; background: var(--line-strong); border-radius: 2px; flex: none; }
+  .st[data-on="done"]     { color: var(--ink-2); }
+  .st[data-on="done"] .st-bar { background: var(--pass); }
+  .st[data-on="now"]      { color: var(--ink); font-weight: 650; }
+  .st[data-on="now"] .st-bar  { background: var(--moving); height: 19px; }
+  .st[data-on="fail"]     { color: var(--critical); font-weight: 650; }
+  .st[data-on="fail"] .st-bar { background: var(--critical); height: 19px; }
+
+  /* ── event log ──────────────────────────────────────────────────────────── */
+  .log { max-height: 460px; overflow-y: auto; overflow-x: auto; }
+  .log-empty { padding: 30px 16px; text-align: center; color: var(--ink-3); font-size: 13px; }
+  .ev {
+    display: grid; grid-template-columns: 58px 128px 1fr; gap: 12px;
+    padding: 9px 14px; font-family: var(--font-mono); font-size: 12.5px;
+    align-items: baseline; animation: land .32s ease-out;
+  }
+  .ev + .ev { border-top: 1px solid var(--line); }
+  @keyframes land { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }
+  .ev-t { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .ev-type { font-weight: 600; letter-spacing: -.01em; }
+  .ev-d { color: var(--ink-2); line-height: 1.45; }
+  .ev[data-tone="pass"] .ev-type { color: var(--pass); }
+  .ev[data-tone="warn"] .ev-type { color: var(--attention); }
+  .ev[data-tone="stop"] .ev-type { color: var(--critical); }
+  .ev[data-tone="move"] .ev-type { color: var(--moving); }
+  .ev-arrow { color: var(--ink-3); }
+
+  /* ── exceptions ─────────────────────────────────────────────────────────── */
+  .exc-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .exc-none {
+    padding: 26px 16px; text-align: center; color: var(--ink-3); font-size: 13px;
+    display: flex; flex-direction: column; gap: 5px; align-items: center;
+  }
+  .exc-none .lamp { width: 12px; height: 12px; background: var(--pass); border-color: var(--pass); }
+  .exc {
+    border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--r);
+    padding: 9px 11px; background: var(--surface-2); animation: land .32s ease-out;
+  }
+  .exc[data-sev="Critical"] { border-left-color: var(--critical); background: var(--critical-bg); }
+  .exc[data-sev="High"]     { border-left-color: var(--attention); background: var(--attention-bg); }
+  .exc[data-sev="Medium"]   { border-left-color: var(--moving); background: var(--moving-bg); }
+  .exc[data-sev="Low"]      { border-left-color: var(--line-strong); }
+  .exc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .exc-type { font-weight: 650; font-size: 13px; letter-spacing: -.005em; }
+  .pill {
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; padding: 2px 6px; border-radius: 2px;
+    border: 1px solid currentColor; font-weight: 600; white-space: nowrap;
+  }
+  .exc[data-sev="Critical"] .pill { color: var(--critical); }
+  .exc[data-sev="High"]     .pill { color: var(--attention); }
+  .exc[data-sev="Medium"]   .pill { color: var(--moving); }
+  .exc[data-sev="Low"]      .pill { color: var(--ink-3); }
+  .exc-detail { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.45; }
+  .exc-meta {
+    font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); margin-top: 6px;
+    display: flex; flex-wrap: wrap; gap: 4px 10px;
+  }
+
+  /* ── tally ──────────────────────────────────────────────────────────────── */
+  .tally { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+  .tally-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .tally-k { font-size: 12.5px; color: var(--ink-2); }
+  .tally-v {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 620;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar { height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--pass); width: 0; transition: width .35s ease; }
+
+  /* ── narration ──────────────────────────────────────────────────────────── */
+  .narrate {
+    background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--moving);
+    border-radius: var(--r); padding: 12px 15px; box-shadow: var(--shadow);
+    font-size: 14px; color: var(--ink); min-height: 3.2em; line-height: 1.5;
+  }
+  .narrate strong { font-weight: 650; }
+  .narrate[data-tone="warn"] { border-left-color: var(--attention); }
+  .narrate[data-tone="stop"] { border-left-color: var(--critical); }
+  .narrate[data-tone="pass"] { border-left-color: var(--pass); }
+
+  .foot {
+    font-size: 12.5px; color: var(--ink-3); border-top: 1px solid var(--line);
+    padding-top: 13px; line-height: 1.6;
+  }
+  .foot code {
+    font-family: var(--font-mono); font-size: 11.5px; background: var(--surface-2);
+    padding: 1px 4px; border-radius: 2px; color: var(--ink-2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="board">
+<div class="wrap">
+
+  <header class="mast">
+    <div class="mast-id">
+      <span class="eyebrow">TrackNTrash · dispatch track &amp; trace</span>
+      <h1>Live dispatch board</h1>
+      <p class="mast-sub">One consignment walking the four checkpoints. Pick a scenario and press
+        run — every line below is what the system actually records.</p>
+    </div>
+    <div class="clock">
+      <span class="clock-time" id="clock">06:11</span>
+      <span class="clock-label" id="clockLabel">Depot time · idle</span>
+    </div>
+  </header>
+
+  <div class="deck">
+    <div class="deck-group">
+      <label class="deck-label" for="scenario">Scenario</label>
+      <select id="scenario">
+        <option value="clean">Clean delivery</option>
+        <option value="wrongvan">Wrong van caught at loading</option>
+        <option value="mismatch">Short count at the dock</option>
+        <option value="damaged">Carton damaged in transit</option>
+        <option value="sla">Delivery never received</option>
+      </select>
+    </div>
+    <div class="deck-group">
+      <button class="primary" id="run">Run</button>
+      <button id="step">Step</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="deck-group">
+      <span class="deck-label">Speed</span>
+      <div class="speeds" id="speeds">
+        <button data-mult="2" aria-pressed="false">0.5×</button>
+        <button data-mult="1" aria-pressed="true">1×</button>
+        <button data-mult="0.45" aria-pressed="false">2×</button>
+      </div>
+    </div>
+  </div>
+
+  <dl class="consign">
+    <div class="cell"><dt>Order</dt><dd>SO-48213</dd></div>
+    <div class="cell"><dt>Store</dt><dd>S-LDN1 · Camden</dd></div>
+    <div class="cell"><dt>Tray</dt><dd>TRAY-LDN1-000042</dd></div>
+    <div class="cell"><dt>Trip</dt><dd id="tripCell">—</dd></div>
+    <div class="cell"><dt>Vehicle</dt><dd id="vanCell">—</dd></div>
+    <div class="cell"><dt>Order lines</dt><dd>3</dd></div>
+  </dl>
+
+  <p class="narrate" id="narrate" data-tone="move">Idle. Three cartons are waiting at the pick
+    face for tray <strong>TRAY-LDN1-000042</strong>, bound for Camden.</p>
+
+  <div class="cols">
+
+    <div class="col-rail" style="display:flex; flex-direction:column; gap:18px;">
+      <section class="panel">
+        <div class="panel-head"><span class="panel-title">Checkpoints</span></div>
+        <ul class="rail" id="rail"></ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><span class="panel-title">Line state</span>
+          <span class="panel-count" id="stateNow">Ordered</span></div>
+        <div class="track" id="track"></div>
+      </section>
+    </div>
+
+    <div class="col-log" style="display:flex; flex-direction:column; gap:18px;">
+      <section class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Event log · append only</span>
+          <span class="panel-count" id="evCount">0 events</span>
+        </div>
+        <div class="log" id="log">
+          <p class="log-empty">No events yet. Press <strong>Run</strong>.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><span class="panel-title">Carton tally</span>
+          <span class="panel-count" id="tallyStage">—</span></div>
+        <div class="tally">
+          <div class="tally-row"><span class="tally-k" id="tallyK">Scanned into tray</span>
+            <span class="tally-v" id="tallyV">0 / 3</span></div>
+          <div class="bar"><i id="tallyBar"></i></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-exc">
+      <section class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Exception board</span>
+          <span class="panel-count" id="excCount">0 open</span>
+        </div>
+        <div id="excWrap">
+          <div class="exc-none"><span class="lamp"></span><span>Nothing outstanding</span></div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <p class="foot">
+    A faithful simulation of the deployed system, not a mock-up: the checkpoints, the six line
+    states, the eleven exception types and their severities are the ones in the code. Times are
+    the scenario's own depot clock. Note that an out-of-sequence or refused scan still
+    <strong>writes its event</strong> — the record is append-only, so
+    <code>IllegalTransition</code> is raised alongside the event rather than instead of it. A
+    device with a flat battery must never be able to lose data.
+  </p>
+
+</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var CHECKPOINTS = [
+    { code: "PickTrayBuild", name: "Pick &amp; tray build", who: "Picker · handheld" },
+    { code: "DispatchDock",  name: "Dispatch dock",         who: "Overhead camera · automatic" },
+    { code: "VehicleLoad",   name: "Vehicle loading",       who: "Driver · handheld" },
+    { code: "StoreReceive",  name: "Store receiving",       who: "Store colleague · handheld" }
+  ];
+
+  var STATES = ["Ordered", "Picked", "Staged", "Loaded", "InTransit", "Received"];
+  var TERMINAL_BAD = ["ShortShipped", "Damaged", "WrongStore", "Lost"];
+
+  var C1 = "(01)09501234567891(21)C-48213-01";
+  var C2 = "(01)09501234567891(21)C-48213-02";
+  var C3 = "(01)09501234567891(21)C-48213-03";
+
+  // Each step: t (depot clock), cp (checkpoint index), lamp, type, detail, tone,
+  // state (new line state), exc, tally, note (rail note), say (narration), tone2.
+  var SCENARIOS = {
+    clean: [
+      { t:"06:12", cp:0, lamp:"active", type:"CartonScan", detail:"C-48213-01 into tray · 1 of 3", tone:"move", tally:[1,3,"Scanned into tray"], note:"1 / 3 scanned", say:"The picker scans the first carton into the tray. Each scan is written the moment it happens." },
+      { t:"06:12", cp:0, lamp:"active", type:"CartonScan", detail:"C-48213-02 into tray · 2 of 3", tone:"move", tally:[2,3,"Scanned into tray"], note:"2 / 3 scanned" },
+      { t:"06:13", cp:0, lamp:"active", type:"CartonScan", detail:"C-48213-02 rescanned — refused as duplicate", tone:"warn", tally:[2,3,"Scanned into tray"], note:"duplicate refused", say:"The same carton is scanned twice. It is <strong>refused, not counted again</strong> — a double count here becomes a phantom shortage at the store." },
+      { t:"06:13", cp:0, lamp:"active", type:"CartonScan", detail:"C-48213-03 into tray · 3 of 3", tone:"move", tally:[3,3,"Scanned into tray"], note:"3 / 3 scanned" },
+      { t:"06:14", cp:0, lamp:"pass", type:"TrayBuildComplete", detail:"3 cartons · tray closed", tone:"pass", state:"Picked", note:"complete · 3 cartons", say:"Tray build complete. The line moves <strong>Ordered → Picked</strong>." },
+      { t:"07:41", cp:1, lamp:"active", type:"DockCameraBurst", detail:"5 frames · tray label decoded", tone:"move", tally:[0,3,"Detected by camera"], note:"reading tray…", say:"The tray slides into the staging zone. Nobody does anything — the camera takes a burst and counts." },
+      { t:"07:41", cp:1, lamp:"pass", type:"DockVerification", detail:"verdict PASS · detected 3, expected 3", tone:"pass", state:"Staged", tally:[3,3,"Detected by camera"], note:"PASS · 3 of 3", say:"Count agrees with the manifest, so nobody is interrupted. <strong>Picked → Staged</strong>." },
+      { t:"08:05", cp:2, lamp:"active", type:"TripCreated", detail:"TRIP-1042 · AB12 CDE · route R-NORTH", tone:"move", trip:"TRIP-1042", van:"AB12 CDE", note:"TRIP-1042 planned" },
+      { t:"08:11", cp:2, lamp:"pass", type:"TripLoadScan", detail:"tray loaded to TRIP-1042 · trip now locked", tone:"pass", state:"Loaded", note:"loaded · trip locked", say:"Every planned tray is aboard, so the trip <strong>locks</strong> — nothing more can be added to it." },
+      { t:"08:20", cp:2, lamp:"pass", type:"TelemetryDepart", detail:"departed depot", tone:"move", state:"InTransit", note:"departed 08:20", say:"Van away. <strong>Loaded → In Transit</strong>. The road itself is not tracked unless you add telematics." },
+      { t:"09:47", cp:3, lamp:"active", type:"ReceivingStart", detail:"ASN matched · 3 cartons expected", tone:"move", tally:[0,3,"Received at store"], note:"receiving 0 / 3", say:"At Camden the colleague scans the tray. The ASN tells the app what should be inside." },
+      { t:"09:48", cp:3, lamp:"active", type:"CartonReceive", detail:"C-48213-01 · Received", tone:"pass", tally:[1,3,"Received at store"], note:"receiving 1 / 3" },
+      { t:"09:49", cp:3, lamp:"active", type:"CartonReceive", detail:"C-48213-02 · Received", tone:"pass", tally:[2,3,"Received at store"], note:"receiving 2 / 3" },
+      { t:"09:50", cp:3, lamp:"active", type:"CartonReceive", detail:"C-48213-03 · Received", tone:"pass", tally:[3,3,"Received at store"], note:"receiving 3 / 3" },
+      { t:"09:52", cp:3, lamp:"pass", type:"ReceivingComplete", detail:"3 of 3 · POD J. Okonkwo · clean", tone:"pass", state:"Received", note:"clean · signed", say:"Clean delivery, signed for. <strong>In Transit → Received</strong>, and the whole journey is on the record." }
+    ],
+
+    wrongvan: [
+      { t:"06:14", cp:0, lamp:"pass", type:"TrayBuildComplete", detail:"3 cartons · tray closed", tone:"pass", state:"Picked", tally:[3,3,"Scanned into tray"], note:"complete · 3 cartons", say:"Tray built and closed at the pick face." },
+      { t:"07:41", cp:1, lamp:"pass", type:"DockVerification", detail:"verdict PASS · detected 3, expected 3", tone:"pass", state:"Staged", tally:[3,3,"Detected by camera"], note:"PASS · 3 of 3", say:"Dock count agrees. The tray is staged and ready to load." },
+      { t:"08:05", cp:2, lamp:"active", type:"TripCreated", detail:"TRIP-1042 · AB12 CDE · Camden run", tone:"move", trip:"TRIP-1042", van:"AB12 CDE", note:"TRIP-1042 planned" },
+      { t:"08:09", cp:2, lamp:"active", type:"TripCreated", detail:"TRIP-1043 · CD34 EFG · Croydon run", tone:"move", note:"two vans on the bay", say:"Two vans are loading side by side on the bay. This is where the expensive mistake happens." },
+      { t:"08:12", cp:2, lamp:"stop", type:"TripLoadScan", detail:"REFUSED — scanned onto TRIP-1043, belongs to TRIP-1042", tone:"stop",
+        exc:{ type:"Wrong trip", sev:"Critical", detail:"TRAY-LDN1-000042 was scanned onto TRIP-1043 (Croydon). It belongs to TRIP-1042 (Camden).", meta:["VehicleLoad","tray TRAY-LDN1-000042","device DRIVER-02"] },
+        note:"REFUSED · wrong trip", say:"The driver scans it onto the wrong van. The app <strong>refuses the scan and names the trip it actually belongs to</strong>. The line stays Staged — it is not loaded onto the wrong van." },
+      { t:"08:12", cp:2, lamp:"stop", type:"IllegalTransition", detail:"event written · line held at Staged", tone:"warn", note:"held at Staged", say:"Note what happened to the record: the refused scan <strong>is still written</strong>. The event log keeps the attempt; only the state transition is withheld." },
+      { t:"08:14", cp:2, lamp:"pass", type:"TripLoadScan", detail:"tray loaded to TRIP-1042 · trip now locked", tone:"pass", state:"Loaded", note:"loaded · correct trip", say:"Corrected in fourteen seconds on the bay. Without this check it becomes a wrong-store delivery: a return leg, a re-pick, and a store that stops trusting you." },
+      { t:"08:20", cp:2, lamp:"pass", type:"TelemetryDepart", detail:"departed depot", tone:"move", state:"InTransit", note:"departed 08:20" },
+      { t:"09:52", cp:3, lamp:"pass", type:"ReceivingComplete", detail:"3 of 3 · POD J. Okonkwo · clean", tone:"pass", state:"Received", tally:[3,3,"Received at store"], note:"clean · signed", say:"Right store, right stock, signed for. The Critical exception stays on the board with its full audit trail." }
+    ],
+
+    mismatch: [
+      { t:"06:14", cp:0, lamp:"pass", type:"TrayBuildComplete", detail:"3 cartons · tray closed", tone:"pass", state:"Picked", tally:[3,3,"Scanned into tray"], note:"complete · 3 cartons", say:"The picker's handheld recorded three cartons into the tray." },
+      { t:"07:41", cp:1, lamp:"active", type:"DockCameraBurst", detail:"5 frames · median count taken", tone:"move", tally:[0,3,"Detected by camera"], note:"reading tray…", say:"A burst of five frames, and the median count is used — that smooths a transient occlusion rather than acting on one bad frame." },
+      { t:"07:41", cp:1, lamp:"warn", type:"DockVerification", detail:"verdict COUNT_MISMATCH · detected 2, expected 3", tone:"stop", tally:[2,3,"Detected by camera"],
+        exc:{ type:"Count mismatch", sev:"High", detail:"Dock camera counted 2 cartons on TRAY-LDN1-000042; the manifest expects 3. Annotated frame attached.", meta:["DispatchDock","frame exceptions/frame-8814.jpg","device edge-dock-1"] },
+        note:"MISMATCH · 2 of 3", say:"The camera sees two cartons where the manifest says three. An exception hits the office board <strong>with the photo attached</strong>, and the tray does not quietly leave." },
+      { t:"07:42", cp:1, lamp:"warn", type:"RelayPulse", detail:"stack light red · 3s", tone:"warn", note:"stack light red", say:"A relay pulses the stack light on the dock, so the problem is visible where the tray is — not only on a screen in the office." },
+      { t:"07:48", cp:1, lamp:"active", type:"OperatorRecount", detail:"C-48213-03 found on floor beside tray", tone:"move", note:"recounting…", say:"Someone walks over and looks. The third carton had slipped off the tray onto the floor — six minutes to resolve, at the dock." },
+      { t:"07:49", cp:1, lamp:"pass", type:"DockVerification", detail:"verdict PASS · detected 3, expected 3", tone:"pass", state:"Staged", tally:[3,3,"Detected by camera"], note:"PASS on recheck", say:"Re-verified and passed. <strong>Picked → Staged</strong>. Had this gone out unchecked, Camden would have raised a shortage three days later with nothing to argue from." },
+      { t:"08:11", cp:2, lamp:"pass", type:"TripLoadScan", detail:"tray loaded to TRIP-1042 · trip locked", tone:"pass", state:"Loaded", trip:"TRIP-1042", van:"AB12 CDE", note:"loaded · trip locked" },
+      { t:"08:20", cp:2, lamp:"pass", type:"TelemetryDepart", detail:"departed depot", tone:"move", state:"InTransit", note:"departed 08:20" },
+      { t:"09:52", cp:3, lamp:"pass", type:"ReceivingComplete", detail:"3 of 3 · POD J. Okonkwo · clean", tone:"pass", state:"Received", tally:[3,3,"Received at store"], note:"clean · signed", say:"Three cartons in, three received. The exception is closed with a reason and stays in the audit trail." }
+    ],
+
+    damaged: [
+      { t:"06:14", cp:0, lamp:"pass", type:"TrayBuildComplete", detail:"3 cartons · tray closed", tone:"pass", state:"Picked", tally:[3,3,"Scanned into tray"], note:"complete · 3 cartons" },
+      { t:"07:41", cp:1, lamp:"pass", type:"DockVerification", detail:"verdict PASS · detected 3, expected 3", tone:"pass", state:"Staged", tally:[3,3,"Detected by camera"], note:"PASS · 3 of 3", say:"Left the dock intact and verified — which is exactly what makes the next event useful." },
+      { t:"08:11", cp:2, lamp:"pass", type:"TripLoadScan", detail:"tray loaded to TRIP-1042 · trip locked", tone:"pass", state:"Loaded", trip:"TRIP-1042", van:"AB12 CDE", note:"loaded · trip locked" },
+      { t:"08:20", cp:2, lamp:"pass", type:"TelemetryDepart", detail:"departed depot", tone:"move", state:"InTransit", note:"departed 08:20" },
+      { t:"09:47", cp:3, lamp:"active", type:"ReceivingStart", detail:"ASN matched · 3 cartons expected", tone:"move", tally:[0,3,"Received at store"], note:"receiving 0 / 3" },
+      { t:"09:48", cp:3, lamp:"active", type:"CartonReceive", detail:"C-48213-01 · Received", tone:"pass", tally:[1,3,"Received at store"], note:"receiving 1 / 3" },
+      { t:"09:49", cp:3, lamp:"stop", type:"CartonDamaged", detail:"C-48213-02 · crushed corner · photo required", tone:"stop", tally:[1,3,"Received at store"],
+        exc:{ type:"Damaged", sev:"High", detail:"C-48213-02 arrived with a crushed corner at S-LDN1. Photo captured at the door.", meta:["StoreReceive","photo blob://damage/48213-02.jpg","by store colleague"] },
+        note:"1 damaged", say:"A carton arrived crushed. The app <strong>will not accept the flag without a photo</strong> — a damage claim with no evidence cannot be settled with the carrier." },
+      { t:"09:50", cp:3, lamp:"active", type:"CartonReceive", detail:"C-48213-03 · Received", tone:"pass", tally:[2,3,"Received at store"], note:"receiving 2 / 3" },
+      { t:"09:53", cp:3, lamp:"warn", type:"ReceivingComplete", detail:"2 received · 1 damaged · POD J. Okonkwo", tone:"warn", state:"Received", note:"2 of 3 · 1 damaged", say:"Recorded against the delivery at the moment it happened, with a photograph — not reconstructed from memory three days later. The line is Received; the damage is a separate, evidenced claim." }
+    ],
+
+    sla: [
+      { t:"06:14", cp:0, lamp:"pass", type:"TrayBuildComplete", detail:"3 cartons · tray closed", tone:"pass", state:"Picked", tally:[3,3,"Scanned into tray"], note:"complete · 3 cartons" },
+      { t:"07:41", cp:1, lamp:"pass", type:"DockVerification", detail:"verdict PASS · detected 3, expected 3", tone:"pass", state:"Staged", tally:[3,3,"Detected by camera"], note:"PASS · 3 of 3" },
+      { t:"08:11", cp:2, lamp:"pass", type:"TripLoadScan", detail:"tray loaded to TRIP-1042 · trip locked", tone:"pass", state:"Loaded", trip:"TRIP-1042", van:"AB12 CDE", note:"loaded · trip locked" },
+      { t:"08:20", cp:2, lamp:"pass", type:"TelemetryDepart", detail:"departed depot", tone:"move", state:"InTransit", note:"departed 08:20", say:"Everything normal so far. Now the interesting part: <strong>nothing else happens</strong>." },
+      { t:"—",     cp:3, lamp:"active", type:"…", detail:"no receiving scan at S-LDN1", tone:"move", note:"awaiting receipt", say:"No receiving scan arrives. No one calls. This is the failure mode that normally goes unnoticed, because silence looks like success." },
+      { t:"08:20", cp:3, lamp:"stop", type:"NoReceiveWithinSla", detail:"24h elapsed since dispatch · raised by scheduled sweep", tone:"stop",
+        exc:{ type:"No receive within SLA", sev:"High", detail:"TRAY-LDN1-000042 dispatched 24h ago to S-LDN1 and never received. Raised automatically; nobody had to notice.", meta:["StoreReceive","next day 08:20","by scheduled sweep"] },
+        note:"SLA breached · 24h", say:"A scheduled job looks for anything dispatched over 24 hours ago and not received. It raises this <strong>without anyone noticing first</strong> — which is the whole point." },
+      { t:"+3d",   cp:3, lamp:"stop", type:"TrayDwellExceeded", detail:"tray last seen 3 days ago", tone:"warn",
+        exc:{ type:"Tray dwell exceeded", sev:"Low", detail:"TRAY-LDN1-000042 has not moved for 3 days. Trays sitting unreturned shrink the usable fleet.", meta:["asset watch","3 day limit","by scheduled sweep"] },
+        note:"dwell 3 days", say:"Three days on, a second sweep flags the tray itself. Unreturned trays make the fleet look smaller than it is, so you buy trays you already own." },
+      { t:"+3d",   cp:3, lamp:"stop", type:"SuspectedLost", detail:"line marked Lost · investigation opened", tone:"stop", state:"Lost",
+        exc:{ type:"Suspected lost", sev:"Medium", detail:"No event for TRAY-LDN1-000042 since dispatch. Line moved to the terminal state Lost.", meta:["terminal state","investigation open"] },
+        note:"LOST", say:"The line ends at <strong>Lost</strong> — a terminal state, reached deliberately and on the record, with the full event history behind it. You know exactly what you can and cannot prove." }
+    ]
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var rail = $("rail"), track = $("track"), log = $("log"), excWrap = $("excWrap");
+  var runBtn = $("run"), stepBtn = $("step"), resetBtn = $("reset"), scenarioSel = $("scenario");
+
+  var idx = 0, timer = null, playing = false, mult = 1;
+  var state = "Ordered", failed = null, excs = [], lamps = [], notes = [];
+
+  function buildRail() {
+    rail.innerHTML = CHECKPOINTS.map(function (c, i) {
+      return '<li class="cp" data-lamp="' + (lamps[i] || "idle") + '">' +
+        '<span class="lamp-col"><span class="lamp"></span><span class="cp-num">' + (i + 1) + '</span></span>' +
+        '<span><span class="cp-name">' + c.name + '</span>' +
+        '<span class="cp-who">' + c.who + '</span>' +
+        '<span class="cp-note">' + (notes[i] || "") + '</span></span></li>';
+    }).join("");
+  }
+
+  function buildTrack() {
+    var reached = STATES.indexOf(state);
+    var rows = STATES.map(function (s, i) {
+      var on = "idle";
+      // On a terminal failure the line stopped at `state`, so that state was still
+      // reached — it just is not "now" any more; the terminal row below is.
+      if (failed) { on = i <= reached ? "done" : "idle"; }
+      else if (i < reached) { on = "done"; }
+      else if (i === reached) { on = "now"; }
+      return '<span class="st" data-on="' + on + '"><i class="st-bar"></i>' + s + '</span>';
+    });
+    if (failed) {
+      rows.push('<span class="st" data-on="fail"><i class="st-bar"></i>' + failed + '</span>');
+    }
+    track.innerHTML = rows.join("");
+    $("stateNow").textContent = failed || state;
+  }
+
+  function renderExcs() {
+    $("excCount").textContent = excs.length + (excs.length === 1 ? " open" : " open");
+    if (!excs.length) {
+      excWrap.innerHTML = '<div class="exc-none"><span class="lamp"></span><span>Nothing outstanding</span></div>';
+      return;
+    }
+    var order = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+    var sorted = excs.slice().sort(function (a, b) { return order[a.sev] - order[b.sev]; });
+    excWrap.innerHTML = '<div class="exc-list">' + sorted.map(function (e) {
+      return '<article class="exc" data-sev="' + e.sev + '">' +
+        '<div class="exc-top"><span class="exc-type">' + e.type + '</span>' +
+        '<span class="pill">' + e.sev + '</span></div>' +
+        '<p class="exc-detail">' + e.detail + '</p>' +
+        '<div class="exc-meta">' + e.meta.map(function (m) { return '<span>' + m + '</span>'; }).join("") + '</div>' +
+        '</article>';
+    }).join("") + '</div>';
+  }
+
+  function setTally(v, of, label, stage) {
+    $("tallyV").textContent = v + " / " + of;
+    $("tallyK").textContent = label;
+    $("tallyBar").style.width = (of ? (v / of) * 100 : 0) + "%";
+    $("tallyStage").textContent = stage || "—";
+  }
+
+  function apply(s) {
+    // event row
+    if (log.querySelector(".log-empty")) { log.innerHTML = ""; }
+    var row = document.createElement("div");
+    row.className = "ev";
+    row.setAttribute("data-tone", s.tone || "move");
+    row.innerHTML = '<span class="ev-t">' + s.t + '</span>' +
+      '<span class="ev-type">' + s.type + '</span>' +
+      '<span class="ev-d">' + s.detail + '</span>';
+    log.insertBefore(row, log.firstChild);
+    log.scrollTop = 0;
+    $("evCount").textContent = log.querySelectorAll(".ev").length + " events";
+
+    if (s.cp != null) {
+      lamps[s.cp] = s.lamp || "active";
+      notes[s.cp] = s.note || notes[s.cp] || "";
+      for (var i = 0; i < s.cp; i++) { if (lamps[i] === "active") { lamps[i] = "pass"; } }
+      buildRail();
+    }
+
+    if (s.state) {
+      if (TERMINAL_BAD.indexOf(s.state) >= 0) { failed = s.state; } else { state = s.state; }
+      buildTrack();
+    }
+    if (s.exc) { excs.push(s.exc); renderExcs(); }
+    if (s.tally) { setTally(s.tally[0], s.tally[1], s.tally[2], CHECKPOINTS[s.cp] ? CHECKPOINTS[s.cp].code : "—"); }
+    if (s.trip) { $("tripCell").textContent = s.trip; }
+    if (s.van) { $("vanCell").textContent = s.van; }
+    if (s.t && s.t !== "—") { $("clock").textContent = s.t; }
+    $("clockLabel").textContent = "Depot time · " + (playing ? "running" : "stepped");
+
+    if (s.say) {
+      var n = $("narrate");
+      n.innerHTML = s.say;
+      n.setAttribute("data-tone", s.tone === "stop" ? "stop" : s.tone === "warn" ? "warn" : s.tone === "pass" ? "pass" : "move");
+    }
+  }
+
+  function stepOnce() {
+    var seq = SCENARIOS[scenarioSel.value];
+    if (idx >= seq.length) { stop(true); return false; }
+    apply(seq[idx]);
+    idx++;
+    if (idx >= seq.length) { stop(true); return false; }
+    return true;
+  }
+
+  function tick() {
+    if (!stepOnce()) { return; }
+    var seq = SCENARIOS[scenarioSel.value];
+    var s = seq[idx - 1] || {};
+    var pause = (s.say ? 2500 : 1050) * mult;
+    timer = setTimeout(tick, pause);
+  }
+
+  function play() {
+    playing = true;
+    runBtn.textContent = "Pause";
+    stepBtn.disabled = true;
+    $("clockLabel").textContent = "Depot time · running";
+    tick();
+  }
+
+  function stop(finished) {
+    playing = false;
+    clearTimeout(timer);
+    timer = null;
+    stepBtn.disabled = false;
+    var seq = SCENARIOS[scenarioSel.value];
+    var done = idx >= seq.length;
+    runBtn.textContent = done ? "Replay" : "Run";
+    $("clockLabel").textContent = "Depot time · " + (done ? "complete" : "paused");
+    if (finished && done) { runBtn.dataset.done = "1"; }
+  }
+
+  function reset() {
+    clearTimeout(timer);
+    timer = null; playing = false; idx = 0;
+    state = "Ordered"; failed = null; excs = []; lamps = []; notes = [];
+    delete runBtn.dataset.done;
+    runBtn.textContent = "Run";
+    stepBtn.disabled = false;
+    log.innerHTML = '<p class="log-empty">No events yet. Press <strong>Run</strong>.</p>';
+    $("evCount").textContent = "0 events";
+    $("tripCell").textContent = "—";
+    $("vanCell").textContent = "—";
+    $("clock").textContent = "06:11";
+    $("clockLabel").textContent = "Depot time · idle";
+    setTally(0, 3, "Scanned into tray", "—");
+    $("narrate").innerHTML = "Idle. Three cartons are waiting at the pick face for tray " +
+      "<strong>TRAY-LDN1-000042</strong>, bound for Camden.";
+    $("narrate").setAttribute("data-tone", "move");
+    buildRail(); buildTrack(); renderExcs();
+  }
+
+  runBtn.addEventListener("click", function () {
+    if (runBtn.dataset.done) { reset(); play(); return; }
+    if (playing) { stop(false); } else { play(); }
+  });
+  stepBtn.addEventListener("click", function () { stepOnce(); stop(false); });
+  resetBtn.addEventListener("click", reset);
+  scenarioSel.addEventListener("change", reset);
+
+  $("speeds").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) { return; }
+    mult = parseFloat(b.dataset.mult);
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function (x) {
+      x.setAttribute("aria-pressed", String(x === b));
+    });
+  });
+
+  reset();
+})();
+</script>
