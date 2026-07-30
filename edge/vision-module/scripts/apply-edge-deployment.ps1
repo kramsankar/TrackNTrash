@@ -34,8 +34,40 @@ param(
 $ErrorActionPreference = 'Stop'
 $manifest = Join-Path $PSScriptRoot '..\deployment.json' | Resolve-Path
 
+# The azure-iot extension supplies `az iot ...`. It fails to install on the Azure CLI's
+# bundled 32-bit Python on Windows, so everything it would do is also implemented against
+# the IoT Hub service REST API. Same result either way.
+$script:HasIotExt = $null -ne (az extension list --query "[?name=='azure-iot'].name" -o tsv 2>$null)
+
+function Get-HubSasToken {
+    param([string]$Hub, [string]$Rg)
+    $key = az rest --method post --uri ("/subscriptions/{0}/resourceGroups/{1}/providers/Microsoft.Devices/IotHubs/{2}/IotHubKeys/iothubowner/listkeys?api-version=2023-06-30" -f
+        (az account show --query id -o tsv), $Rg, $Hub) --query primaryKey -o tsv
+    if (-not $key) { throw "Could not read the iothubowner key for $Hub." }
+
+    $resource = "$Hub.azure-devices.net"
+    $expiry = [int][double]::Parse((Get-Date -UFormat %s)) + 1800
+    $toSign = [System.Web.HttpUtility]::UrlEncode($resource) + "`n" + $expiry
+    $hmac = [System.Security.Cryptography.HMACSHA256]::new([Convert]::FromBase64String($key))
+    $sig = [Convert]::ToBase64String($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($toSign)))
+    return "SharedAccessSignature sr={0}&sig={1}&se={2}&skn=iothubowner" -f
+        [System.Web.HttpUtility]::UrlEncode($resource),
+        [System.Web.HttpUtility]::UrlEncode($sig), $expiry
+}
+
+Add-Type -AssemblyName System.Web
+
 # --- the device has to exist; a deployment to a missing device fails obscurely -----------
-$known = az iot hub device-identity show --hub-name $HubName --device-id $DeviceId --query "deviceId" -o tsv 2>$null
+if ($script:HasIotExt) {
+    $known = az iot hub device-identity show --hub-name $HubName --device-id $DeviceId --query "deviceId" -o tsv 2>$null
+} else {
+    $tok = Get-HubSasToken -Hub $HubName -Rg $ResourceGroup
+    try {
+        $d = Invoke-RestMethod -Method Get -Uri "https://$HubName.azure-devices.net/devices/$DeviceId`?api-version=2021-04-12" `
+             -Headers @{ Authorization = $tok }
+        $known = $d.deviceId
+    } catch { $known = $null }
+}
 if (-not $known) {
     throw "Device '$DeviceId' is not registered on $HubName. Register it first (see PROVISIONING.md), then re-run."
 }
@@ -94,8 +126,24 @@ try {
     }
 
     Write-Host "Applying to $DeviceId on $HubName..."
-    az iot edge set-modules --hub-name $HubName --device-id $DeviceId --content $rendered --output none
-    Write-Host "Applied. Confirm the module picks up the credentials with:" -ForegroundColor Green
+    if ($script:HasIotExt) {
+        az iot edge set-modules --hub-name $HubName --device-id $DeviceId --content $rendered --output none
+    } else {
+        # applyConfigurationContent is what set-modules calls underneath. It returns 204 and
+        # writes to the device twin on the hub, so it succeeds whether or not the gateway is
+        # currently connected — an offline device picks the deployment up when it next connects.
+        if (-not $tok) { $tok = Get-HubSasToken -Hub $HubName -Rg $ResourceGroup }
+        $body = @{ modulesContent = (Get-Content $rendered -Raw | ConvertFrom-Json).modulesContent } | ConvertTo-Json -Depth 40
+        Invoke-RestMethod -Method Post -ContentType 'application/json' `
+            -Uri "https://$HubName.azure-devices.net/devices/$DeviceId/applyConfigurationContent`?api-version=2021-04-12" `
+            -Headers @{ Authorization = $tok } -Body $body | Out-Null
+    }
+
+    Write-Host "Applied to $DeviceId." -ForegroundColor Green
+    if ($d -and $d.connectionState -eq 'Disconnected') {
+        Write-Warning "$DeviceId is Disconnected. The deployment is staged on the hub and will be pulled when the gateway connects; nothing runs until then."
+    }
+    Write-Host "Confirm what the module reports back with:"
     Write-Host "  az iot hub module-twin show --hub-name $HubName --device-id $DeviceId --module-id dockvision --query 'properties.reported'"
 }
 finally {

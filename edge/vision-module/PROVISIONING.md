@@ -6,8 +6,9 @@
 |---|---|
 | IoT Hub | `iot-tracktrash-dev-4ymqn2` |
 | Edge device | `dock-cam-ldn1` (`iotEdge=true`, enabled, `Disconnected` until a gateway attaches) |
+| Deployment | applied — `dockvision` configured on the device twin at image `2.0` |
 | Registry | `crtracktrashdev4ymqn2.azurecr.io` (Basic, admin user enabled) |
-| Image | `tracktrash/dockvision:1.0` |
+| Image | `tracktrash/dockvision:2.0` (218 MB; `1.0` was the 3.15 GB torch build) |
 | Device connection string | Key Vault secret `edge-device-cs-dock-cam-ldn1` |
 
 The registry is declared in `infra/bicep/main.bicep`, so a full deployment adopts it rather
