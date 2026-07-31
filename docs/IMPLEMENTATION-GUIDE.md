@@ -359,6 +359,42 @@ reach `Received` in the console. Deliberately scan a carton onto the wrong trip 
 
 ---
 
+## 5b. Where this deployment actually lives
+
+The stack was moved from UK South to Central India; the UK South footprint is deleted.
+
+| | |
+|---|---|
+| Resource group | `rg-tracktrash-in` (centralindia) |
+| API | `https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net` |
+| Console + downloads | `https://stz3yo3xfwp433mdev.z29.web.core.windows.net` |
+| SQL | `sql-tracktrash-dev-kerbuh.database.windows.net` |
+| IoT Hub | `iot-tracktrash-dev-z3yo3x` |
+| Registry | `crtracktrashdevz3yo3x.azurecr.io` |
+| Key Vault | `kv-tracktrashdev-z3yo3x` |
+| Pre-delete backup | `stz3yo3xfwp433mdev` → `backups/uksouth-final-pre-delete.bacpac` |
+
+The API hostname is compiled into the three MAUI clients and baked into the console at build
+time via `VITE_API_BASE`, so **moving regions means rebuilding all four** — a DNS change alone
+will not carry them.
+
+### Restoring from the pre-delete backup
+
+```bash
+az sql db create --resource-group rg-tracktrash-in --server <server> --name Restored   --service-objective S1 --collation SQL_Latin1_General_CP1_CI_AS
+az sql db import --resource-group rg-tracktrash-in --server <server> --name Restored   --admin-user tntadmin --admin-password "$SQLPW"   --storage-key "$KEY" --storage-key-type StorageAccessKey   --storage-uri "https://stz3yo3xfwp433mdev.blob.core.windows.net/backups/uksouth-final-pre-delete.bacpac"
+```
+
+`import` needs the database to exist already, at a named service objective — it will not
+create one, and the error when it is missing is a bare `ResourceNotFound`.
+
+### VMs are blocked on this subscription
+
+Every VM SKU reports `NotAvailableForSubscription` in every region, including India and the
+US — it is a restriction on the Sponsorship offer, not regional capacity, and regional vCPU
+quota sits unused at 0 of 65. Standing up a gateway VM needs that restriction lifted by
+support, or a different subscription. Moving regions does not help.
+
 ## 6. Ongoing operations
 
 | Job | Cadence | How |
