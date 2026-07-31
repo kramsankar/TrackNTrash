@@ -121,6 +121,25 @@ resource cameraAgentPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
   }
 }
 
+// Auth keys. These lived only in App Service configuration, which made the JWT signing key
+// the one secret in the system with no backup: losing it invalidates every issued token and
+// there is no copy to restore from. Held here like the rest, and referenced by the app.
+resource authSigningSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(authSigningKey)) {
+  parent: keyVault
+  name: 'auth-signing-key'
+  properties: {
+    value: authSigningKey
+  }
+}
+
+resource authSetupSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(authSetupKey)) {
+  parent: keyVault
+  name: 'auth-setup-key'
+  properties: {
+    value: authSetupKey
+  }
+}
+
 // ---------------- Storage (frames / photos) ----------------
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: take(replace(toLower('st${uniq}${env}'), '-', ''), 24)
@@ -286,8 +305,8 @@ resource trackingApi 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'Auth__Issuer', value: 'tracktrash' }
         { name: 'Auth__Audience', value: 'tracktrash-console' }
         { name: 'Auth__LifetimeHours', value: '12' }
-        { name: 'Auth__SigningKey', value: authSigningKey }
-        { name: 'Auth__SetupKey', value: authSetupKey }
+        { name: 'Auth__SigningKey', value: empty(authSigningKey) ? '' : '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/auth-signing-key/)' }
+        { name: 'Auth__SetupKey', value: empty(authSetupKey) ? '' : '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/auth-setup-key/)' }
         { name: 'Cors__Origins', value: empty(corsOrigins) ? 'https://${storage.properties.primaryEndpoints.web}' : corsOrigins }
       ]
     }

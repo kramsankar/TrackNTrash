@@ -207,7 +207,19 @@ contributor but no Key Vault data-plane role, `secret set` returns `Forbidden` a
 
 To read a secret value back you need **Key Vault Secrets User**. Contributor is not enough.
 
-Set `Auth:SigningKey` and `Auth:SetupKey` as app settings. Then seed the first admin:
+`Auth:SigningKey` and `Auth:SetupKey` are Key Vault secrets (`auth-signing-key`,
+`auth-setup-key`), referenced from app settings like the connection strings. The signing key
+otherwise lives in exactly one place with no backup — lose it and every issued token is
+invalid with nothing to restore from.
+
+**A dangling Key Vault reference is the dangerous failure here.** It does not error; it
+resolves to nothing, which leaves `Auth:SigningKey` empty, which makes `LocalEnabled` false,
+which makes `RequireAuthorizationWhenConfigured` a no-op — every endpoint open. After changing
+either setting, check `GET /auth/config` reports `"local": true` and that an anonymous
+`GET /orders` still returns 401. The template passes an empty literal rather than a reference
+when the parameter is blank, so it cannot create that state by accident.
+
+Then seed the first admin:
 
 ```bash
 curl -X POST "$API/auth/users" -H "Content-Type: application/json" \
