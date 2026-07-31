@@ -12,7 +12,7 @@ class ModuleConfig:
     max_burst_retries: int = 3
     # Base of the deployed tracking API. manifest_sync_url is derived from it so the
     # two cannot drift apart and point at different environments.
-    api_base_url: str = "https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net"
+    api_base_url: str = "https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net"
     manifest_sync_url: str = ""
     camera_code: str = "CAM-DOCK-1"
     heartbeat_seconds: int = 60

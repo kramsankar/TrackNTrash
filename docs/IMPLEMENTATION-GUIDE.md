@@ -153,8 +153,8 @@ Check current pricing before committing; this is not a free-tier system.
 ### Step 1 — Infrastructure
 
 ```bash
-az group create --name rg-tracktrash-dev --location uksouth
-az deployment group create --resource-group rg-tracktrash-dev \
+az group create --name rg-tracktrash-in --location uksouth
+az deployment group create --resource-group rg-tracktrash-in \
   --template-file infra/bicep/main.bicep \
   --parameters infra/bicep/params.dev.json
 ```
@@ -223,7 +223,7 @@ way in before any user exists.
 ```bash
 dotnet publish services/tracking-api/src/TrackNTrash.Tracking.Api -c Release -o ./publish
 # zip ./publish, then:
-az webapp deploy --resource-group rg-tracktrash-dev --name <app> --src-path api.zip --type zip
+az webapp deploy --resource-group rg-tracktrash-in --name <app> --src-path api.zip --type zip
 ```
 
 ### Step 5 — Console
@@ -270,7 +270,7 @@ Only if you are automating checkpoint 2.
 
 ```bash
 # image (server-side; no local Docker needed)
-az acr build --registry <acr> --image tracktrash/dockvision:1.0 --platform linux/amd64 \
+az acr build --registry <acr> --image tracktrash/dockvision:2.1 --platform linux/amd64 \
   edge/vision-module
 
 # register the gateway, then apply the deployment

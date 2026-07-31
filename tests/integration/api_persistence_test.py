@@ -26,7 +26,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 SQLCMD = r"C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\sqlcmd"
-SQL_SERVER = "sql-tracktrash-dev-r4p4og.database.windows.net"
+SQL_SERVER = "sql-tracktrash-dev-kerbuh.database.windows.net"
 SQL_DB = "TrackNTrash"
 SQL_USER = "tntadmin"
 
@@ -525,7 +525,7 @@ def test_validation(api):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--api", default="https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net")
+    ap.add_argument("--api", default="https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net")
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", required=True, help="console admin password")
     ap.add_argument("--sql-password", default=None, help="SQL admin password; omit to skip DB assertions")

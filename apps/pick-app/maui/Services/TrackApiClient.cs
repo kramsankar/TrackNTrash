@@ -8,7 +8,7 @@ namespace TrackNTrash.PickApp.Services;
 public sealed class TrackApiClient
 {
     // Live Azure deployment. Override with an env/config for local runs.
-    public const string BaseUrl = "https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net";
+    public const string BaseUrl = "https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net";
 
     private readonly HttpClient _http;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)

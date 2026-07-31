@@ -10,7 +10,7 @@
             "minDockerVersion": "v1.25",
             "registryCredentials": {
               "acr": {
-                "address": "crtracktrashdev4ymqn2.azurecr.io",
+                "address": "crtracktrashdevz3yo3x.azurecr.io",
                 "username": "<ACR_USERNAME>",
                 "password": "<ACR_PASSWORD>"
               }
@@ -42,7 +42,7 @@
             "status": "running",
             "restartPolicy": "always",
             "settings": {
-              "image": "crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:2.1",
+              "image": "crtracktrashdevz3yo3x.azurecr.io/tracktrash/dockvision:2.1",
               "createOptions": "{\"HostConfig\": {\"Privileged\": true, \"Devices\": [{\"PathOnHost\": \"/dev/gpiomem\", \"PathInContainer\": \"/dev/gpiomem\", \"CgroupPermissions\": \"rwm\"}], \"Binds\": [\"/var/lib/tracktrash/models:/app/models:ro\"]}}"
             },
             "env": {
@@ -73,7 +73,7 @@
     },
     "dockvision": {
       "properties.desired": {
-        "apiBaseUrl": "https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net",
+        "apiBaseUrl": "https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net",
         "cameraCode": "CAM-DOCK-1",
         "heartbeatSeconds": 60,
         "cameraRtspUrl": "rtsp://dock-cam.local/stream1",

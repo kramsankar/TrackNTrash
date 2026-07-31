@@ -4,10 +4,10 @@
 
 | | |
 |---|---|
-| IoT Hub | `iot-tracktrash-dev-4ymqn2` |
+| IoT Hub | `iot-tracktrash-dev-z3yo3x` |
 | Edge device | `dock-cam-ldn1` (`iotEdge=true`, enabled, `Disconnected` until a gateway attaches) |
 | Deployment | applied — `dockvision` at image `2.1`, model bind-mounted read-only |
-| Registry | `crtracktrashdev4ymqn2.azurecr.io` (Basic, admin user enabled) |
+| Registry | `crtracktrashdevz3yo3x.azurecr.io` (Basic, admin user enabled) |
 | Image | `tracktrash/dockvision:2.1` (`1.0` was the 3.15 GB torch build) |
 | Device connection string | Key Vault secret `edge-device-cs-dock-cam-ldn1` |
 
@@ -21,7 +21,7 @@ device is a deliberate step — see below.
 1. Install Azure IoT Edge runtime (1.5 LTS) on the gateway device (x64 or ARM64).
 2. Provision it with the device connection string:
    ```bash
-   az keyvault secret show --vault-name kv-tracktrashdev-4ymqn2 --name edge-device-cs-dock-cam-ldn1 --query value -o tsv
+   az keyvault secret show --vault-name kv-tracktrashdev-z3yo3x --name edge-device-cs-dock-cam-ldn1 --query value -o tsv
    ```
    then `sudo iotedge config mp --connection-string '<that>'` and `sudo iotedge config apply`.
 3. Grant Docker access to `/dev/gpiomem` (relay) — the deployment sets `Privileged` + device mapping.
@@ -88,12 +88,12 @@ otherwise load and then misbehave, which is harder to diagnose than an outright 
 `az acr build` builds server-side, so no local Docker is needed:
 
 ```bash
-az acr build --registry crtracktrashdev4ymqn2 --image tracktrash/dockvision:2.1 --platform linux/amd64 .
+az acr build --registry crtracktrashdevz3yo3x --image tracktrash/dockvision:2.1 --platform linux/amd64 .
 ```
 
 Add `--no-logs` on a Windows console. The CLI can otherwise crash while *streaming* the build
 log (`cp1252` cannot encode the output). The build itself is unaffected either way — check it
-with `az acr task list-runs --registry crtracktrashdev4ymqn2 --top 3 -o table`.
+with `az acr task list-runs --registry crtracktrashdevz3yo3x --top 3 -o table`.
 
 ### Why the image is small now
 

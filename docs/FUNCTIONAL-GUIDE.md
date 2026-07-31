@@ -89,7 +89,7 @@ flowchart TD
 ## 5. How to use it right now (in your browser)
 
 Open the **Admin & Exception Console** (live):
-**https://st4ymqn2xrprtgedev.z33.web.core.windows.net**
+**https://stz3yo3xfwp433mdev.z29.web.core.windows.net**
 
 The left **menu** has:
 
@@ -125,9 +125,9 @@ In the console, the top-left user chip shows the signed-in person and their role
 
 | Thing | Link |
 |-------|------|
-| **Admin & Exception Console** (start here) | https://st4ymqn2xrprtgedev.z33.web.core.windows.net |
-| Tracking API (health check) | https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net/health |
-| API docs (Swagger) | https://app-tracking-tracktrash-dev-4ymqn2.azurewebsites.net/swagger |
+| **Admin & Exception Console** (start here) | https://stz3yo3xfwp433mdev.z29.web.core.windows.net |
+| Tracking API (health check) | https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net/health |
+| API docs (Swagger) | https://app-tracking-tracktrash-dev-z3yo3x.azurewebsites.net/swagger |
 
 ---
 

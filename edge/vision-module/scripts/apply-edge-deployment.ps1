@@ -24,10 +24,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$DeviceId,
-    [string]$HubName = 'iot-tracktrash-dev-4ymqn2',
-    [string]$VaultName = 'kv-tracktrashdev-4ymqn2',
-    [string]$ResourceGroup = 'rg-tracktrash-dev',
-    [string]$AcrName = 'crtracktrashdev4ymqn2',
+    [string]$HubName = 'iot-tracktrash-dev-z3yo3x',
+    [string]$VaultName = 'kv-tracktrashdev-z3yo3x',
+    [string]$ResourceGroup = 'rg-tracktrash-in',
+    [string]$AcrName = 'crtracktrashdevz3yo3x',
     [switch]$WhatIf
 )
 

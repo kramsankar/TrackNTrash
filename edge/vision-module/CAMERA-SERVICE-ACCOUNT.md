@@ -26,7 +26,7 @@ business opening a screen.
 
 | Where | What |
 |---|---|
-| Key Vault `kv-tracktrashdev-4ymqn2` | `camera-agent-username`, `camera-agent-password` — the source of truth |
+| Key Vault `kv-tracktrashdev-z3yo3x` | `camera-agent-username`, `camera-agent-password` — the source of truth |
 | `infra/bicep/main.bicep` | declares both secrets (`cameraAgentPassword` is a `@secure()` param) |
 | `deployment.json` | carries `TNT_API_USERNAME` / `TNT_API_PASSWORD` as **placeholders** |
 | the module's environment | where the real values land, at apply time |
@@ -60,23 +60,23 @@ that does not exist fails obscurely.
 
 | | |
 |---|---|
-| IoT Hub | `iot-tracktrash-dev-4ymqn2` |
+| IoT Hub | `iot-tracktrash-dev-z3yo3x` |
 | Edge device | `dock-cam-ldn1` — registered, `iotEdge=true`, enabled |
-| Registry | `crtracktrashdev4ymqn2.azurecr.io` (Basic, admin user on) |
-| Image | `crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:1.0` |
+| Registry | `crtracktrashdevz3yo3x.azurecr.io` (Basic, admin user on) |
+| Image | `crtracktrashdevz3yo3x.azurecr.io/tracktrash/dockvision:2.1` |
 | Vault secrets | `camera-agent-username`, `camera-agent-password`, `edge-device-cs-dock-cam-ldn1` |
 
 ### Still needed before a camera actually verifies a tray
 
-1. **The detection model.** `models/` holds only a placeholder README —
-   `carton_yolov8n.onnx` comes from Module 5 and is not in the repo. The module starts
-   without it but the first detection raises. Either bake it into the image or mount it as a
-   volume, which also lets it be updated in the field without a rebuild.
+1. **The detection model.** `carton_yolov8n.onnx` comes from Module 5 and is not in the
+   repo. It is mounted from the gateway at `/var/lib/tracktrash/models`, not baked into the
+   image, so putting it in place is a file copy and a module restart. Without it the module
+   starts and heartbeats but every verification raises `ModelMissing`.
 2. **A physical gateway running the IoT Edge runtime**, provisioned with the device
    connection string from `edge-device-cs-dock-cam-ldn1`. The device shows `Disconnected`
    until then. See [PROVISIONING.md](PROVISIONING.md).
-3. **The `azure-iot` CLI extension** on whatever machine applies the deployment
-   (`az extension add --name azure-iot`).
+3. **The `azure-iot` CLI extension**, or not — the apply script falls back to the IoT Hub
+   REST API when it is absent, which it is on the Azure CLI's bundled 32-bit Python.
 4. **Key Vault read access** — the caller needs a data-plane role (Key Vault Secrets User) on
    the vault. Control-plane contributor is *not* enough to read a secret value.
 
@@ -105,7 +105,7 @@ curl -X POST "$API/auth/users" \
 
 ```bash
 # 2. update the source of truth
-az keyvault secret set --vault-name kv-tracktrashdev-4ymqn2 --name camera-agent-password --value NEW
+az keyvault secret set --vault-name kv-tracktrashdev-z3yo3x --name camera-agent-password --value NEW
 ```
 
 ```bash

@@ -24,6 +24,17 @@ param sqlAdminLogin string
 @description('SQL admin password')
 param sqlAdminPassword string
 
+@description('Signing key for locally-issued JWTs. Empty disables local sign-in, which leaves the API unauthenticated — always set it outside local dev.')
+@secure()
+param authSigningKey string = ''
+
+@description('Header key that gates POST /auth/users, the bootstrap path used to seed the first admin before any user exists.')
+@secure()
+param authSetupKey string = ''
+
+@description('Comma-separated origins allowed to call the API. The console static site plus, optionally, a Vite dev server.')
+param corsOrigins string = ''
+
 @description('Password for the camera-agent service account the dock cameras sign in with. Empty leaves the secret untouched.')
 @secure()
 param cameraAgentPassword string = ''
@@ -269,6 +280,15 @@ resource trackingApi 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'ConnectionStrings__TrackNTrash', value: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/sql-connection/)' }
         { name: 'ServiceBus__ConnectionString', value: '@Microsoft.KeyVault(SecretUri=${keyVault.properties.vaultUri}secrets/servicebus-connection/)' }
         { name: 'ServiceBus__Topic', value: 'exceptions' }
+        // These were configured by hand on the first deployment and therefore missing from
+        // this template, so redeploying the stack in another region produced an API with no
+        // sign-in at all. They belong here.
+        { name: 'Auth__Issuer', value: 'tracktrash' }
+        { name: 'Auth__Audience', value: 'tracktrash-console' }
+        { name: 'Auth__LifetimeHours', value: '12' }
+        { name: 'Auth__SigningKey', value: authSigningKey }
+        { name: 'Auth__SetupKey', value: authSetupKey }
+        { name: 'Cors__Origins', value: empty(corsOrigins) ? 'https://${storage.properties.primaryEndpoints.web}' : corsOrigins }
       ]
     }
   }
