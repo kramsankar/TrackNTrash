@@ -299,3 +299,59 @@ def test_detector_no_longer_imports_ultralytics():
     reqs = pathlib.Path("requirements.txt").read_text(encoding="utf-8")
     active = [ln for ln in reqs.splitlines() if ln.strip() and not ln.strip().startswith("#")]
     assert not any("ultralytics" in ln for ln in active)
+
+
+# ---- Model mounted from the host, not baked into the image -------------------------------
+# The likeliest deployment fault is now a forgotten bind mount, which must not present as an
+# opaque onnxruntime error on the first tray of the shift.
+
+def test_missing_model_names_the_mount_rather_than_just_the_path(tmp_path):
+    from app.detector import ModelMissing, Yolov8OnnxDetector
+
+    det = Yolov8OnnxDetector(str(tmp_path / "carton_yolov8n.onnx"))
+    assert det.model_available() is False
+    with pytest.raises(ModelMissing) as ex:
+        det._ensure()
+    msg = str(ex.value)
+    assert "/var/lib/tracktrash/models" in msg      # where to put it on the gateway
+    assert "/app/models" in msg                     # where it lands in the container
+
+
+def test_zero_byte_model_counts_as_missing(tmp_path):
+    """A truncated copy is worse than an absent one — it would load and then misbehave."""
+    from app.detector import Yolov8OnnxDetector
+
+    stub = tmp_path / "carton_yolov8n.onnx"
+    stub.write_bytes(b"")
+    assert Yolov8OnnxDetector(str(stub)).model_available() is False
+
+
+def test_present_model_reports_available(tmp_path):
+    from app.detector import Yolov8OnnxDetector
+
+    stub = tmp_path / "carton_yolov8n.onnx"
+    stub.write_bytes(b"not a real model, but non-empty")
+    assert Yolov8OnnxDetector(str(stub)).model_available() is True
+
+
+def test_manifest_mounts_the_model_read_only():
+    """The module never writes the model; a writable mount only risks corrupting the file
+    every dock verification depends on."""
+    import json
+    import pathlib
+
+    d = json.loads(pathlib.Path("deployment.json").read_text(encoding="utf-8"))
+    mod = d["modulesContent"]["$edgeAgent"]["properties.desired"]["modules"]["dockvision"]
+    binds = json.loads(mod["settings"]["createOptions"])["HostConfig"]["Binds"]
+    assert any(b.endswith(":/app/models:ro") for b in binds), binds
+
+    model_path = d["modulesContent"]["dockvision"]["properties.desired"]["modelPath"]
+    assert model_path.startswith("/app/models/"), model_path
+
+
+def test_dockerfile_does_not_bake_the_model_in():
+    import pathlib
+
+    df = pathlib.Path("Dockerfile").read_text(encoding="utf-8")
+    assert "COPY models/" not in df
+    assert "mkdir -p /app/models" in df            # mount point still exists when nothing mounts

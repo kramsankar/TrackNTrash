@@ -6,9 +6,9 @@
 |---|---|
 | IoT Hub | `iot-tracktrash-dev-4ymqn2` |
 | Edge device | `dock-cam-ldn1` (`iotEdge=true`, enabled, `Disconnected` until a gateway attaches) |
-| Deployment | applied — `dockvision` configured on the device twin at image `2.0` |
+| Deployment | applied — `dockvision` at image `2.1`, model bind-mounted read-only |
 | Registry | `crtracktrashdev4ymqn2.azurecr.io` (Basic, admin user enabled) |
-| Image | `tracktrash/dockvision:2.0` (218 MB; `1.0` was the 3.15 GB torch build) |
+| Image | `tracktrash/dockvision:2.1` (`1.0` was the 3.15 GB torch build) |
 | Device connection string | Key Vault secret `edge-device-cs-dock-cam-ldn1` |
 
 The registry is declared in `infra/bicep/main.bicep`, so a full deployment adopts it rather
@@ -44,19 +44,51 @@ Store the resulting connection string as a Key Vault secret named
 
 ## 2. Model
 
-**Not yet in place.** `models/` holds a placeholder README; the exported
-`carton_yolov8n.onnx` comes from Module 5. The module image builds and starts without it, but
-the first detection raises — `Yolov8OnnxDetector` loads the model lazily on first `count()`.
+**The model is mounted from the gateway, not baked into the image.**
 
-Either place the file at `models/` before building the image, or mount it via a mapped volume
-so it can be updated in the field without a rebuild.
+| | |
+|---|---|
+| On the gateway | `/var/lib/tracktrash/models/carton_yolov8n.onnx` |
+| In the container | `/app/models/carton_yolov8n.onnx`, **read-only** |
+| Twin setting | `modelPath` (absolute) |
+
+A retrained model is then a file copy and a module restart — not a rebuild, a registry push,
+and a pull to every dock. The mount is read-only because the module only ever reads it, and a
+writable mount is a way for a running container to corrupt the file the whole dock depends on.
+
+### Putting the model on a gateway
+
+```bash
+sudo mkdir -p /var/lib/tracktrash/models
+sudo cp carton_yolov8n.onnx /var/lib/tracktrash/models/
+sudo chmod 0444 /var/lib/tracktrash/models/carton_yolov8n.onnx
+sudo iotedge restart dockvision
+```
+
+**Not yet in place for `dock-cam-ldn1`** — the exported `carton_yolov8n.onnx` comes from
+Module 5 and is not in the repo.
+
+### When it is missing
+
+The module starts, signs in, and keeps sending heartbeats, so the console still shows the
+camera as alive. At boot it prints:
+
+```
+[model] MISSING at /app/models/carton_yolov8n.onnx — verification will fail.
+```
+
+and any verification raises `ModelMissing`, whose message names both the gateway directory and
+the container mount. That is deliberate: with the model mounted rather than baked in, a
+forgotten `Binds` entry and a file in the wrong directory look identical, and onnxruntime's own
+error names only the path. A zero-byte file counts as missing too — a truncated copy would
+otherwise load and then misbehave, which is harder to diagnose than an outright absence.
 
 ### Rebuilding the image
 
 `az acr build` builds server-side, so no local Docker is needed:
 
 ```bash
-az acr build --registry crtracktrashdev4ymqn2 --image tracktrash/dockvision:2.0 --platform linux/amd64 .
+az acr build --registry crtracktrashdev4ymqn2 --image tracktrash/dockvision:2.1 --platform linux/amd64 .
 ```
 
 Add `--no-logs` on a Windows console. The CLI can otherwise crash while *streaming* the build

@@ -42,8 +42,8 @@
             "status": "running",
             "restartPolicy": "always",
             "settings": {
-              "image": "crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:2.0",
-              "createOptions": "{\"HostConfig\":{\"Privileged\":true,\"Devices\":[{\"PathOnHost\":\"/dev/gpiomem\",\"PathInContainer\":\"/dev/gpiomem\",\"CgroupPermissions\":\"rwm\"}]}}"
+              "image": "crtracktrashdev4ymqn2.azurecr.io/tracktrash/dockvision:2.1",
+              "createOptions": "{\"HostConfig\": {\"Privileged\": true, \"Devices\": [{\"PathOnHost\": \"/dev/gpiomem\", \"PathInContainer\": \"/dev/gpiomem\", \"CgroupPermissions\": \"rwm\"}], \"Binds\": [\"/var/lib/tracktrash/models:/app/models:ro\"]}}"
             },
             "env": {
               "BLOB_CONNECTION_STRING": {
@@ -83,7 +83,7 @@
         "blobExceptionContainer": "exceptions",
         "gpioRelayPin": 17,
         "triggerMode": "motion",
-        "modelPath": "models/carton_yolov8n.onnx",
+        "modelPath": "/app/models/carton_yolov8n.onnx",
         "confidence": 0.35,
         "iouThreshold": 0.45
       }

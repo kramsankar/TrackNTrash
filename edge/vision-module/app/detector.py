@@ -20,6 +20,15 @@ class CartonDetector(Protocol):
     def count(self, frame) -> int: ...
 
 
+class ModelMissing(RuntimeError):
+    """The ONNX model is not where the module was told to look.
+
+    Raised with the mount in the message because that is nearly always the cause: the model
+    is mounted from the host rather than baked into the image, so an unmounted volume or a
+    file dropped in the wrong directory presents identically to a corrupt install.
+    """
+
+
 # --------------------------------------------------------------------------- geometry
 
 def letterbox(frame, size: int = 640):
@@ -162,9 +171,28 @@ class Yolov8OnnxDetector:
         self._session = None
         self._input_name = None
 
+    def model_available(self) -> bool:
+        """True when the model file is present and non-empty."""
+        import os
+        try:
+            return os.path.isfile(self.model_path) and os.path.getsize(self.model_path) > 0
+        except OSError:
+            return False
+
     def _ensure(self):
         if self._session is not None:
             return
+
+        # Check before handing the path to onnxruntime, whose error for a missing file names
+        # only the path — no help at all when the real cause is an unmounted volume.
+        if not self.model_available():
+            raise ModelMissing(
+                f"detection model not found at {self.model_path!r}. "
+                "The model is mounted from the host, not baked into the image: put the "
+                "exported carton_yolov8n.onnx in /var/lib/tracktrash/models on the gateway "
+                "and confirm the module's Binds entry maps it to /app/models."
+            )
+
         import onnxruntime as ort  # deferred so the module imports without the runtime
 
         opts = ort.SessionOptions()

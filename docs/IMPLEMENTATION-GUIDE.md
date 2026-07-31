@@ -281,10 +281,15 @@ The script pulls the camera service-account credentials from Key Vault, renders 
 a temp file, applies it, and deletes the rendered copy — the password is never committed and is
 on disk only for the duration of the call.
 
-**`models/carton_yolov8n.onnx` is not in the repo.** Without it the module starts and then
-raises on the first tray it tries to count, because the detector loads its model lazily. Bake
-it into the image or mount it as a volume — the volume route also lets you swap the model in the
-field without a rebuild at all.
+**The model is mounted from the gateway, not baked into the image.** Put the exported file at
+`/var/lib/tracktrash/models/carton_yolov8n.onnx`; the module mounts it read-only at
+`/app/models`. Retraining is then a file copy and a module restart, rather than a rebuild, a
+registry push and a pull to every dock.
+
+`carton_yolov8n.onnx` is **not in the repo** — it comes from Module 5. Without it the module
+still starts, signs in and heartbeats, so the camera reads as alive; verification raises
+`ModelMissing`, whose message names both the gateway directory and the container mount, because
+a forgotten `Binds` entry and a file in the wrong place otherwise look identical.
 
 Export it for this detector with:
 

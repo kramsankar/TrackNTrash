@@ -69,6 +69,16 @@ async def main() -> None:
     client.on_method_request_received = lambda req: asyncio.create_task(
         _handle_method(client, req, pipeline, relay, config))
 
+    # The model is mounted from the host, so a forgotten Binds entry or a file in the wrong
+    # directory is the likeliest deployment fault. Say so at boot rather than letting the
+    # first tray of the shift be the thing that discovers it.
+    if pipeline.detector.model_available():
+        print(f"[model] loaded from {config.model_path}")
+    else:
+        print(f"[model] MISSING at {config.model_path} — verification will fail. "
+              "Put carton_yolov8n.onnx in /var/lib/tracktrash/models on this gateway; "
+              "it is mounted read-only at /app/models.")
+
     heartbeat = Heartbeat(api_base=config.api_base_url, camera_code=config.camera_code, auth=auth)
     asyncio.create_task(_heartbeat_loop(heartbeat, config))
 

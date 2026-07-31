@@ -44,7 +44,13 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 WORKDIR /app
 COPY app/ ./app/
-COPY models/ ./models/
+
+# The detection model is NOT baked in. It is bind-mounted from the gateway at /app/models
+# (see the Binds entry in deployment.json), so a retrained model is a file copy and a module
+# restart rather than a rebuild, a registry push and a pull to every dock. An empty directory
+# is created so the mount point exists even when nothing is mounted over it — the detector
+# then raises ModelMissing naming the mount, instead of failing obscurely inside onnxruntime.
+RUN mkdir -p /app/models
 
 # IoT Edge sets the module environment; run as the module host.
 CMD ["python", "-m", "app.main"]

@@ -19,7 +19,9 @@ class ModuleConfig:
     blob_exception_container: str = "exceptions"
     gpio_relay_pin: int = 17
     trigger_mode: str = "motion"            # "motion" | "button"
-    model_path: str = "models/carton_yolov8n.onnx"
+    # Absolute, because the model is bind-mounted from the gateway rather than baked
+    # into the image; a relative path would silently depend on the working directory.
+    model_path: str = "/app/models/carton_yolov8n.onnx"
     confidence: float = 0.35
     # Non-maximum suppression overlap. Ours since the detector dropped ultralytics, and
     # worth tuning per dock: tightly packed cartons need a higher value or neighbours get
