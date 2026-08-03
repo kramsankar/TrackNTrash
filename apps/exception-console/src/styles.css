@@ -286,3 +286,18 @@ figcaption { color: var(--muted); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Language switcher in the topbar. Indic scripts have taller ascenders and descenders than
+   Latin, so the control gets a little more line box than a Latin-only select would need. */
+.lang-select {
+  margin-left: auto;
+  background: var(--surface-2, #1d2427);
+  color: inherit;
+  border: 1px solid var(--line, #2a3236);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.lang-select:focus-visible { outline: 2px solid var(--moving, #62a0d8); outline-offset: 2px; }
