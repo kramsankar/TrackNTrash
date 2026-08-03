@@ -20,7 +20,13 @@ public sealed class SqlMasterStore
         string KeyColumn,    // ProductId
         string[] Columns,    // writable columns
         string OrderBy,
-        string Label);       // human name for messages
+        string Label,        // human name for messages
+        // Natural key used as the translation's EntityKey. An identity id would not survive
+        // a re-seed or match across environments; a StoreCode does.
+        string NaturalKey = "",
+        // Columns worth translating. Codes, quantities and flags are deliberately absent —
+        // translating a GTIN or a capacity would be nonsense.
+        string[]? Translatable = null);
 
     /// <summary>The masters this endpoint family serves. Identifiers come only from here.</summary>
     public static readonly IReadOnlyDictionary<string, MasterDef> Masters =
@@ -28,25 +34,25 @@ public sealed class SqlMasterStore
         {
             ["product"] = new("product", "ops.Product", "ProductId",
                 new[] { "Gtin", "Sku", "Name", "Category", "Brand", "UnitsPerCarton", "ItemIdentification", "Uom", "IsActive" },
-                "Name", "Product"),
+                "Name", "Product", "Gtin", new[] { "Name", "Category", "Brand" }),
             ["store"] = new("store", "ops.Store", "StoreId",
                 new[] { "StoreCode", "Name", "AddressLine", "City", "Region", "PostCode", "Country", "IsActive" },
-                "StoreCode", "Store"),
+                "StoreCode", "Store", "StoreCode", new[] { "Name", "AddressLine", "City", "Region" }),
             ["zone"] = new("zone", "ops.Zone", "ZoneId",
                 new[] { "SiteCode", "ZoneCode", "Name", "ZoneType", "IsActive" },
-                "SiteCode, ZoneCode", "Zone"),
+                "SiteCode, ZoneCode", "Zone", "ZoneCode", new[] { "Name" }),
             ["rack"] = new("rack", "ops.Rack", "RackId",
                 new[] { "RackCode", "ZoneId", "SiteCode", "Aisle", "Level", "Capacity", "IsActive" },
-                "SiteCode, RackCode", "Rack"),
+                "SiteCode, RackCode", "Rack", "RackCode", new[] { "Aisle" }),
             ["vehicle"] = new("vehicle", "ops.Vehicle", "VehicleId",
                 new[] { "Registration", "Description", "TrayCapacity", "IsActive" },
-                "Registration", "Vehicle"),
+                "Registration", "Vehicle", "Registration", new[] { "Description" }),
             ["device"] = new("device", "ops.Device", "DeviceId",
                 new[] { "DeviceCode", "DeviceType", "SiteCode", "IsActive" },
-                "DeviceCode", "Device"),
+                "DeviceCode", "Device", "DeviceCode", Array.Empty<string>()),
             ["role"] = new("role", "ops.Role", "RoleId",
                 new[] { "RoleName", "Description", "IsAdmin", "IsActive" },
-                "RoleName", "Role"),
+                "RoleName", "Role", "RoleName", new[] { "RoleName", "Description" }),
         };
 
     private static MasterDef Def(string key) =>
@@ -70,6 +76,43 @@ public sealed class SqlMasterStore
             for (int i = 0; i < r.FieldCount; i++)
                 row[Camel(r.GetName(i))] = r.IsDBNull(i) ? null : r.GetValue(i);
             rows.Add(row);
+        }
+        return rows;
+    }
+
+    /// <summary>
+    /// Master rows with translated display fields overlaid for the requested language.
+    ///
+    /// Untranslated fields keep their English value rather than going blank — a half-empty
+    /// screen is worse than a mixed-language one, and blank rows would look like missing data
+    /// rather than a missing translation. The original is kept alongside as
+    /// "nameOriginal" so an editor can see what a translation is standing in for.
+    /// </summary>
+    public async Task<IReadOnlyList<Dictionary<string, object?>>> ListLocalisedAsync(
+        string key, string language, SqlTranslationStore translations, CancellationToken ct = default)
+    {
+        var rows = await ListAsync(key, ct);
+        var def = Def(key);
+        if (string.Equals(language, SqlTranslationStore.DefaultLanguage, StringComparison.OrdinalIgnoreCase)
+            || def.Translatable is null || def.Translatable.Length == 0
+            || string.IsNullOrEmpty(def.NaturalKey))
+            return rows;
+
+        var bundle = await translations.BundleAsync(def.Key, language, ct);
+        if (bundle.Count == 0) return rows;
+
+        var naturalKey = Camel(def.NaturalKey);
+        foreach (var row in rows)
+        {
+            if (!row.TryGetValue(naturalKey, out var kv) || kv is null) continue;
+            var entityKey = kv.ToString() ?? "";
+            foreach (var field in def.Translatable)
+            {
+                var camel = Camel(field);
+                if (!bundle.TryGetValue($"{entityKey}|{camel}", out var translated)) continue;
+                row[camel + "Original"] = row.TryGetValue(camel, out var orig) ? orig : null;
+                row[camel] = translated;
+            }
         }
         return rows;
     }

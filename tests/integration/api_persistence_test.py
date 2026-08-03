@@ -194,6 +194,85 @@ def test_camera_service_account(api, camera_pw):
            not leaked, ", ".join(leaked) if leaked else "all 403")
 
 
+def test_i18n(api, pw, skip_db):
+    print("\n── Languages & translations ──")
+    s, langs = call(api, "GET", "/i18n/languages", token=_token)
+    codes = {l.get("code") for l in langs} if isinstance(langs, list) else set()
+    record("i18n", "Tamil and Hindi are on offer", {"en", "ta", "hi"} <= codes, ", ".join(sorted(codes)))
+
+    # The picker shows the native name; a Tamil speaker looks for தமிழ், not "Tamil".
+    native = {l["code"]: l["nativeName"] for l in langs} if isinstance(langs, list) else {}
+    ta_ok = all(0x0B80 <= ord(c) <= 0x0BFF for c in native.get("ta", "x"))
+    hi_ok = all(0x0900 <= ord(c) <= 0x097F for c in native.get("hi", "x"))
+    record("i18n", "Native names are in the right script", ta_ok and hi_ok,
+           f"ta={native.get('ta')} hi={native.get('hi')}")
+
+    s, b = call(api, "GET", "/i18n/reference?lang=ta", token=_token)
+    entries = (b or {}).get("entries", {})
+    record("i18n", "Tamil reference bundle covers states and exceptions",
+           len(entries.get("state", {})) >= 10 and len(entries.get("exception", {})) >= 10,
+           f"{len(entries.get('state', {}))} states, {len(entries.get('exception', {}))} exceptions")
+
+    s, b = call(api, "GET", "/i18n/reference?lang=hi", token=_token)
+    record("i18n", "Hindi reference bundle populated",
+           len((b or {}).get("entries", {}).get("state", {})) >= 10)
+
+    # An unknown code must degrade to English rather than 4xx: a stale preference on an old
+    # handset should still render a readable screen.
+    s, b = call(api, "GET", "/i18n/reference?lang=zz", token=_token)
+    record("i18n", "Unknown language falls back to English", s == 200 and b.get("language") == "en",
+           f"HTTP {s} lang={b.get('language') if isinstance(b, dict) else '?'}")
+
+    s, b = call(api, "GET", "/i18n/reference", token=_token)
+    record("i18n", "No language specified defaults to English",
+           s == 200 and b.get("language") == "en")
+
+    # Round-trip a translation and assert the fallback, which is the behaviour that decides
+    # whether the feature is usable: a half-translated screen must never show gaps.
+    key = "I18N-" + uuid.uuid4().hex[:5].upper()
+    call(api, "POST", "/masters/store",
+         {"storeCode": key, "name": "Test Depot", "city": "Madurai", "region": "Tamil Nadu"}, token=_token)
+    s, _ = call(api, "PUT", "/i18n/translations",
+                {"entityType": "store", "entityKey": key, "field": "name",
+                 "language": "ta", "value": "சோதனை கிடங்கு"}, token=_token)
+    record("i18n", "Translation saves", s == 200, f"HTTP {s}")
+
+    def find(rows):
+        return next((r for r in rows if r.get("storeCode") == key), None) if isinstance(rows, list) else None
+
+    _, rows = call(api, "GET", "/masters/store?lang=ta", token=_token)
+    row = find(rows) or {}
+    record("i18n", "Translated field comes back in Tamil",
+           all(0x0B80 <= ord(c) <= 0x0BFF or c == " " for c in row.get("name", "x")),
+           str(row.get("name")))
+    record("i18n", "Untranslated field FALLS BACK to English, never blank",
+           row.get("region") == "Tamil Nadu", f"region={row.get('region')!r}")
+    record("i18n", "Original value is preserved alongside the translation",
+           row.get("nameOriginal") == "Test Depot", str(row.get("nameOriginal")))
+
+    _, rows = call(api, "GET", "/masters/store?lang=en", token=_token)
+    row_en = find(rows) or {}
+    record("i18n", "English view is unaffected by the translation",
+           row_en.get("name") == "Test Depot", str(row_en.get("name")))
+
+    # Clearing must restore the fallback rather than store a blank.
+    call(api, "PUT", "/i18n/translations",
+         {"entityType": "store", "entityKey": key, "field": "name", "language": "ta", "value": ""}, token=_token)
+    _, rows = call(api, "GET", "/masters/store?lang=ta", token=_token)
+    record("i18n", "Clearing a translation restores English, not blank",
+           (find(rows) or {}).get("name") == "Test Depot")
+
+    if not skip_db:
+        record("i18n", "Translations PERSISTED to SQL",
+               (count(pw, "ops.Translation") or 0) >= 70)
+        record("i18n", "No translation was mangled to question marks",
+               count(pw, "ops.Translation", "Value LIKE '%[?]%'") == 0)
+
+    sid = (find(rows) or {}).get("storeId")
+    if sid:
+        call(api, "DELETE", f"/masters/store/{sid}", token=_token)
+
+
 def test_orders(api, pw, skip_db):
     print("\n── Orders (create → walk checkpoints → persist) ──")
     order = "SO-IT-" + uuid.uuid4().hex[:6].upper()
@@ -539,6 +618,7 @@ def main():
     test_health(args.api)
     test_auth(args.api, args.user, args.password)
     test_camera_service_account(args.api, args.camera_password)
+    test_i18n(args.api, pw, skip_db)
     line_id = test_orders(args.api, pw, skip_db)
     if line_id:
         test_idempotency(args.api, line_id)

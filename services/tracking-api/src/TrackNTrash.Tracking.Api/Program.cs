@@ -45,6 +45,7 @@ if (useSql)
     builder.Services.AddSingleton(new SqlCameraStore(sqlCs!));
     builder.Services.AddSingleton(new SqlMasterStore(sqlCs!));
     builder.Services.AddSingleton(new SqlRbacStore(sqlCs!));
+    builder.Services.AddSingleton(new SqlTranslationStore(sqlCs!));
     builder.Services.AddSingleton<ITrayProjection>(new SqlTrayProjection(sqlCs!));
 }
 else
@@ -253,11 +254,17 @@ app.MapGet("/orders", async (IServiceProvider sp, CancellationToken ct) =>
 app.MapGet("/masters", () => Results.Ok(SqlMasterStore.Masters.Values.Select(m => new { m.Key, m.Label })))
     .WithTags("Masters").WithName("ListMasterTypes").RequireAuthorizationWhenConfigured(authOptions);
 
-app.MapGet("/masters/{key}", async (string key, IServiceProvider sp, CancellationToken ct) =>
+app.MapGet("/masters/{key}", async (string key, string? lang, HttpRequest req, IServiceProvider sp, CancellationToken ct) =>
 {
     var store = sp.GetService<SqlMasterStore>();
     if (store is null) return Results.Ok(Array.Empty<object>());
-    try { return Results.Ok(await store.ListAsync(key, ct)); }
+    var translations = sp.GetService<SqlTranslationStore>();
+    try
+    {
+        if (translations is null) return Results.Ok(await store.ListAsync(key, ct));
+        var language = await translations.ResolveAsync(lang ?? req.Headers.AcceptLanguage.ToString(), ct);
+        return Results.Ok(await store.ListLocalisedAsync(key, language, translations, ct));
+    }
     catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
 }).WithTags("Masters").WithName("ListMaster").RequireAuthorizationWhenConfigured(authOptions);
 
@@ -687,6 +694,63 @@ app.MapPost("/receiving/return-tray", async (ReturnTrayDto dto, ReceivingService
 })
 .WithTags("Receiving").WithName("ReturnTray").RequireAuthorizationWhenConfigured(authOptions);
 
+// ---------- Languages & translations (Module 14) ----------
+// The language a caller gets is resolved once, here: an explicit ?lang= wins, then the
+// browser or handset's Accept-Language, then English. An unknown code resolves to English
+// rather than failing — a stale preference on an old handset should degrade to a readable
+// screen, not a broken request.
+
+app.MapGet("/i18n/languages", async (IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlTranslationStore>();
+    if (store is null)
+        return Results.Ok(new[] { new { code = "en", englishName = "English", nativeName = "English" } });
+    var langs = await store.LanguagesAsync(ct);
+    return Results.Ok(langs.Select(l => new { code = l.Code, englishName = l.EnglishName, nativeName = l.NativeName }));
+})
+.WithTags("i18n").WithName("ListLanguages").RequireAuthorizationWhenConfigured(authOptions);
+
+// Every reference translation the console needs — checkpoints, states, exception types,
+// severities, roles — in one round trip rather than one per screen.
+app.MapGet("/i18n/reference", async (string? lang, HttpRequest req, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlTranslationStore>();
+    if (store is null) return Results.Ok(new { language = "en", entries = new Dictionary<string, object>() });
+    var language = await store.ResolveAsync(lang ?? req.Headers.AcceptLanguage.ToString(), ct);
+    return Results.Ok(new { language, entries = await store.ReferenceBundleAsync(language, ct) });
+})
+.WithTags("i18n").WithName("ReferenceBundle").RequireAuthorizationWhenConfigured(authOptions);
+
+app.MapGet("/i18n/translations/{entityType}/{entityKey}", async (string entityType, string entityKey,
+    IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlTranslationStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    var rows = await store.ForEntityAsync(entityType, entityKey, ct);
+    return Results.Ok(rows.Select(r => new { language = r.Language, field = r.Field, value = r.Value }));
+})
+.WithTags("i18n").WithName("GetTranslations").RequireAuthorizationWhenConfigured(authOptions);
+
+app.MapPut("/i18n/translations", async (TranslationDto dto, IServiceProvider sp, CancellationToken ct) =>
+{
+    var store = sp.GetService<SqlTranslationStore>();
+    if (store is null) return Results.Problem("Requires SQL persistence.", statusCode: 501);
+    if (string.IsNullOrWhiteSpace(dto.EntityType) || string.IsNullOrWhiteSpace(dto.EntityKey)
+        || string.IsNullOrWhiteSpace(dto.Field) || string.IsNullOrWhiteSpace(dto.Language))
+        return Results.BadRequest(new { error = "entityType, entityKey, field and language are required." });
+
+    var active = (await store.LanguagesAsync(ct)).Select(l => l.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    if (!active.Contains(dto.Language))
+        return Results.BadRequest(new { error = $"Unknown language '{dto.Language}'. Active: {string.Join(", ", active)}." });
+
+    await store.UpsertAsync(dto.EntityType, dto.EntityKey, dto.Field, dto.Language, dto.Value, ct);
+    // An empty value removes the translation, restoring the English fallback rather than
+    // storing a blank that would render as a gap on screen.
+    return Results.Ok(new { dto.EntityType, dto.EntityKey, dto.Field, dto.Language,
+                            action = string.IsNullOrWhiteSpace(dto.Value) ? "cleared" : "saved" });
+})
+.WithTags("i18n").WithName("UpsertTranslation").RequireAuthorizationWhenConfigured(authOptions);
+
 // ---------- Exception Console (Module 12) ----------
 app.MapHub<ExceptionsHub>("/hubs/exceptions").RequireAuthorizationWhenConfigured(authOptions);
 
@@ -738,5 +802,9 @@ static async Task<IResult> ApplyAction(long id, string action, ActionDto dto, IC
 app.Run();
 
 public sealed record ActionDto(string User, string? ReasonCode, string? Note);
+
+/// <summary>One translated field. A null or empty Value clears the translation.</summary>
+public sealed record TranslationDto(string EntityType, string EntityKey, string Field,
+    string Language, string? Value);
 
 public partial class Program { }
