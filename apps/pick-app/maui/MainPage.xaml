@@ -24,6 +24,9 @@
                 <VerticalStackLayout Spacing="10">
                     <Label Text="0 · SIGN IN" FontSize="12" TextColor="#5f93ff" FontAttributes="Bold" />
                     <Label x:Name="lblAuth" Text="The tracking API only accepts scans from a signed-in user." FontSize="12" TextColor="#9aa6ba" />
+                    <Label Text="LANGUAGE" FontSize="11" TextColor="#5f93ff" FontAttributes="Bold" />
+                    <Picker x:Name="pickLang" TextColor="#e7ecf6" TitleColor="#9aa6ba"
+                            SelectedIndexChanged="OnLanguageChanged" />
                     <Entry x:Name="txtUser" Placeholder="Username" Text="admin" TextColor="#e7ecf6" />
                     <Entry x:Name="txtPass" Placeholder="Password" IsPassword="True" TextColor="#e7ecf6" Completed="OnSignIn" />
                     <Button x:Name="btnSignIn" Text="Sign in" Clicked="OnSignIn" BackgroundColor="#2f66e6" TextColor="White" />

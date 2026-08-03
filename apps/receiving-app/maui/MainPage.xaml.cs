@@ -12,13 +12,13 @@ public partial class MainPage : ContentPage
     {
         InitializeComponent();
         _ = CheckHealth();
-        RefreshAuthUi();
+        InitLanguage();
     }
 
     private async Task CheckHealth()
     {
         bool ok = await _api.HealthAsync();
-        lblConn.Text = ok ? $"● Connected · {TrackApiClient.BaseUrl}" : "○ Offline — cannot reach the API";
+        lblConn.Text = ok ? $"● {Loc.T("status.connected")} · {TrackApiClient.BaseUrl}" : $"○ {Loc.T("status.offline")}";
         lblConn.TextColor = ok ? Color.FromArgb("#43b477") : Color.FromArgb("#f2675e");
     }
 
@@ -142,8 +142,8 @@ public partial class MainPage : ContentPage
         txtUser.IsVisible = !on;
         txtPass.IsVisible = !on;
         lblAuth.Text = on
-            ? $"✓ Signed in as {_api.Auth.Username}"
-            : "The tracking API only accepts scans from a signed-in user.";
+            ? $"✓ {Loc.T("signIn.signedAs")}: {_api.Auth.Username}"
+            : Loc.T("signIn.hint");
         lblAuth.TextColor = Color.FromArgb(on ? "#43b477" : "#9aa6ba");
     }
 
@@ -166,5 +166,37 @@ public partial class MainPage : ContentPage
         _api.Auth.SignOut(_api.Http);
         RefreshAuthUi();
         Banner("Signed out.", false);
+    }
+
+    // ---- Language ------------------------------------------------------------------
+    // Strings are compiled in, so switching is instant and works with no signal. Only the
+    // sign-in card and status line are re-rendered here; the rest of this screen is scan
+    // fields and codes, which stay as they are in every language.
+
+    private bool _langReady;
+
+    private void InitLanguage()
+    {
+        pickLang.ItemsSource = Loc.Languages.Select(l => l.Native).ToList();
+        var idx = Array.FindIndex(Loc.Languages, l => l.Code == Loc.Current);
+        pickLang.SelectedIndex = idx < 0 ? 0 : idx;
+        _langReady = true;
+        ApplyLanguage();
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        if (!_langReady || pickLang.SelectedIndex < 0) return;
+        Loc.Current = Loc.Languages[pickLang.SelectedIndex].Code;
+        ApplyLanguage();
+    }
+
+    private void ApplyLanguage()
+    {
+        btnSignIn.Text = Loc.T("action.signIn");
+        btnSignOut.Text = Loc.T("action.signOut");
+        txtUser.Placeholder = Loc.T("signIn.username");
+        txtPass.Placeholder = Loc.T("signIn.password");
+        RefreshAuthUi();
     }
 }
